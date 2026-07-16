@@ -53,6 +53,13 @@ AGENT_SESSION_ID=default
 AGENT_CALL_KEYWORDS=
 
 
+# 对话行为配置，对应 config.ts 里的 keepAwake 配置
+
+#回复播完后自动唤醒小爱，方便直接追问，不用再说一遍唤醒词
+#删除该配置或设为 false 表示不保持唤醒（默认）
+KEEP_AWAKE=false
+
+
 # 提醒推送服务配置，对应 config.ts 里的 push 配置
 # 外部服务可以 POST /push 主动让音箱说话，比如定时提醒
 
@@ -153,5 +160,9 @@ pnpm dev
    缺少其中任意一项，都会回退到小爱音箱自带的语音合成服务。
    该音频流由 `src/server.rs` 中 `start_play` 的音频参数决定，如需更换其他格式的语音合成服务，记得同步修改这两处配置。
 
+4. 配置 `KEEP_AWAKE=true` 后可以连续对话：回复播完音箱会自己放提示音、点灯，并保持约 7 秒的收音窗口（时长由固件决定），接着说就行，不用再说一遍唤醒词。窗口内没人说话会自动退出，不会一直收音。
+   **该功能需要刷入开启了多轮对话的补丁固件**（[👉 client-patch](../../packages/client-patch/README.md)）。原版固件下这个开关不会报错，但也不会有任何效果。
+   注意只有外部服务的回复（以及你在 `onMessage` 里自己返回的回复）才会进入连续对话，交回小爱原生处理的消息和外部服务推送的提醒都不会。
+
 > [!NOTE]
-> 本项目只是一个简单的演示程序，抛砖引玉。如果你想要更多的功能，比如唤醒词识别、语音转文字、连续对话等（甚至是对接 OpenAI 的 [Realtime API](https://platform.openai.com/docs/guides/realtime)），可参考本项目代码自行实现。
+> 本项目只是一个简单的演示程序，抛砖引玉。如果你想要更多的功能，比如唤醒词识别、语音转文字等（甚至是对接 OpenAI 的 [Realtime API](https://platform.openai.com/docs/guides/realtime)），可参考本项目代码自行实现。

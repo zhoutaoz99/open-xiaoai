@@ -171,6 +171,8 @@ sequenceDiagram
 | 实现方 | **小爱原生固件**，open-xiaoai 不参与 |
 | 触发 | 用户说「小爱同学」 |
 
+**连续对话（可选）**：配了 `KEEP_AWAKE=true` 后，回复播完 migpt 会让音箱进入多轮对话，用户不用每轮都说唤醒词，详见下面的「⑨ 连续对话」。需要刷补丁固件。
+
 **自定义唤醒词（可选）**：`examples/kws` 是独立模块（基于 sherpa-onnx），会把识别结果写入 `/tmp/open-xiaoai/kws.log`（格式 `时间戳@关键词`）。`KwsMonitor`（`packages/client-rust/src/services/monitor/kws.rs`）tail 该文件并上报 `kws` 事件。
 
 > ⚠️ 在 migpt 中，`kws` 事件**仅打印日志**，不驱动任何业务逻辑（`migpt/xiaoai.ts:96-99`）。需要自定义唤醒词时要单独安装 `examples/kws`。
@@ -391,6 +393,47 @@ POST http://{migpt}:{AGENT_PUSH_PORT}/push
 
 > ⚠️ **`/push` 本质是「让音箱说任意话」的接口**，默认监听 `0.0.0.0`（Docker 需要）。未配置密钥时同网络下任何人都能调用，启动时会打印告警。
 
+### ⑨ 连续对话（多轮对话）
+
+配了 `KEEP_AWAKE=true` 之后，回复播完会让音箱进入多轮对话，用户接着说就行，不用再说一遍唤醒词。
+
+```
+回复播完 ──▶ ubus call pnshelper event_notify '{"src":3,"event":4,"detail":"1"}'
+         ──▶ mipns：set_wakeup_status / enable asr = 1 / 分配 aivs dialog_id
+         ──▶ 音箱自己放提示音（multirounds_tone.opus）+ 点灯
+         ──▶ 约 7s 收音窗口（固件写死）──▶ 没人说话就 cloud-asr-timeout 自动退出
+```
+
+用户在窗口内说话，走的是和唤醒词**完全相同**的原生链路：小爱自己也会抢答，但那正是 `abortXiaoAI()` 一直在处理的事，所以 `onMessage` 现有逻辑直接复用，不用特殊处理。
+
+**挂在哪**：`OpenXiaoAIEngine.onMessage` 包住了 `super.onMessage()`（`migpt/xiaoai.ts`）。引擎是逐句阻塞播报的（见上面的「⑤ 回复 → 流式分句」），所以 `super.onMessage()` 返回时回复已经播完了，接着触发正好。
+
+**什么时候触发**：只有**我们自己播报了回复**才触发。这件事只有 `onMessage` 钩子的返回值知道，所以 `start()` 里包了一层钩子把它的决定记下来（连着消息 id 一起记，因为用户抢话时消息是并发处理的）：
+
+| 钩子返回 | 含义 | 触发？ |
+| --- | --- | --- |
+| `{ text / url / stream }` | 我们自己播报 | ✅ |
+| `{ handled: true }` | `fallback` 交回小爱，或用户抢话静默放弃 | ❌ 说话的不是我们，不能抢 |
+| `undefined` | 关键词没命中，交回小爱原生处理 | ❌ 同上 |
+| 有更新的消息进来 | 用户抢话 | ❌ 交给新消息负责 |
+
+外部服务推送的提醒（`/push`）不走 `onMessage`，所以也不会触发。
+
+> ⚠️ **必须刷补丁固件**（`patches/LX06/04-mipns-multirounds.sh`）。原版固件的 mipns 收到这个事件只会报 `unexpected event type: 6`。
+> 原版固件下 `KEEP_AWAKE=true` 不会报错，但也不会有任何效果——`pnshelper` 照样返回 `code 0`，**从返回值分辨不出来打没打补丁**，所以 `startMultiRounds()` 的返回值只能证明「命令送到了音箱」。
+
+> ⚠️ **`abortXiaoAI()` 会把 mipns 的状态机卡在 `transmitend`**，这是补丁要改两处的原因。
+> 多轮对话只接受 `idle` 状态，而 `transmitend ---> idle` 只有三条路，且**全部由 aivs 驱动**（`dialog finish` / `asr timeout` / `disconnected`）。我们每轮都重启 `mico_aivs_lab` 打断小爱，aivs 一死这三个通知谁也不会来，状态机就再也回不到 `idle`——实测这三个事件在设备整个日志里出现次数都是 **0**。
+> 平时这个「卡住」没人察觉，是因为唤醒词走的 `local pre-wakeup` 能从**任何**状态跃迁。所以补丁的第二处就是把状态表里 `transmitend` 指向 `idle` 的处理函数。
+
+> ⚠️ **`wakeUp()` 在 LX06 上是坏的，别用**。它的两个 src 都不是唤醒：实测 `src:1` 是**闹钟**事件（`enter pnshelper event notify src alarm!`），mipns 收到后直接忽略；`src:0` 同理。唯一能唤醒的是声学唤醒词（`rice_wakeup` 两级检测器跑在 `xaudio_engine` 里，带声源测向），**没有任何 ubus/IPC 入口**。
+> 顺带一提，`packages/client-rust/src/bin/monitor.rs`（自定义唤醒词）用的也是 `src:1`，所以 `examples/kws` 在 LX06 上同样只会放提示音而不会真的唤醒。
+
+> 💡 **窗口时长不用我们管**。固件写死 7 秒（日志 `animation begin multirounds:7000`），超时自动退出，所以不存在「窗口内麦克风一直在听、把电视声音也转发给外部服务」的问题。
+
+> 💡 **怎么确认补丁生效**：音箱上 `tail -f /var/log/messages`，触发后看到 `local multirounds, idle ---> preparing!` 就是成功，看到 `unexpected event type: 6!` 就是没打补丁。
+> 注意 `logread`/`syslogd` 在这个固件上都不存在，日志是 syslog-ng 写到 `/var/log/messages` 的。
+
 ## 五、通信协议
 
 ### 5.1 服务端 ↔ 音箱端：WebSocket（:4399）
@@ -429,6 +472,10 @@ POST http://{migpt}:{AGENT_PUSH_PORT}/push
 9. **播报会排队** —— AI 回复和推送提醒不会同时说话，后到的等前面说完。
 10. **推送端口要设密钥** —— `/push` 不配 `AGENT_PUSH_API_KEY` 时同网络下任何人都能让音箱说话。
 11. **配置走 `.env`** —— 复制 `.env.example` 为 `.env` 填写即可，启动命令 `tsx --env-file-if-exists=.env` 会自动加载；Docker 运行时也可直接用环境变量传入。`OPENAI_*` 已经不再需要（内置 LLM 被绕过），`TTS_*` 四项缺一不可，否则回退到小爱自带 TTS。
+    注意 `pnpm start` 用的是 `tsx` 而不是 `tsx watch`，改完代码要重启才生效。
+12. **连续对话默认关闭，且要刷补丁固件** —— `KEEP_AWAKE=true` 打开后，回复播完音箱会进入约 7 秒的多轮对话窗口，不用每轮都说唤醒词。原版固件下开关不报错但没效果，详见「⑨ 连续对话」。
+13. **`wakeUp()` 在 LX06 上是坏的** —— 它的两个 src 都不是唤醒（`src:1` 实测是闹钟事件），能唤醒的只有声学唤醒词。想让音箱重新收音请用 `startMultiRounds()`，详见「⑨ 连续对话」。
+14. **`setMic()` 的 event 号是反直觉的** —— `event:7` 是**静音**、`event:8` 是取消静音（mipns 日志 `enter notify wakeup mute: 1` 里的 1 就是静音）。搞反会把用户的麦克风哑掉。
 
 ## 七、关键代码索引
 

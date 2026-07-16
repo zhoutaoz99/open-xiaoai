@@ -95,6 +95,12 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
     voice: envString("TTS_VOICE"),
   },
   /**
+   * 回复播报完毕后进入连续对话，方便直接追问，不用再说一遍唤醒词（在 .env 文件里配置）
+   *
+   * 注意：默认关闭，且需要刷入开启了多轮对话的补丁固件，详见 packages/client-patch
+   */
+  keepAwake: envBoolean("KEEP_AWAKE"),
+  /**
    * 关闭引擎内置的大模型问答
    *
    * 注意：置空后引擎不会再调用 askAI()，所有消息都由下面的 onMessage 接管，

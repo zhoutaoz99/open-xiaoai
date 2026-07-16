@@ -9,6 +9,7 @@
 - 开启固化 SSH（支持自定义登录密码）
 - 禁用系统自动更新（系统更新后需要重新刷机打补丁）
 - 添加开机启动脚本 `/data/init.sh`（方便执行一些初始化脚本）
+- 开启连续对话（多轮对话，仅 LX06，详见[下方说明](#连续对话多轮对话)）
 
 ## 下载固件
 
@@ -116,6 +117,85 @@ npm run build
 
 > [!TIP]
 > 如果你想要更进一步的定制自己的固件，可以参考 `src/build.sh` 脚本里的构建流程：在提取固件后自行修改固件内的脚本、配置和应用程序，然后重新打包即可。
+
+## 连续对话（多轮对话）
+
+`patches/LX06/04-mipns-multirounds.sh` 会开启小爱音箱 Pro 的连续对话：回复播完后音箱自己放提示音、点灯，并保持约 **7 秒**的收音窗口（时长由固件写死），期间直接说话即可，无需再说唤醒词，超时自动退出。
+
+打完补丁后，用下面这条命令让音箱进入连续对话：
+
+```shell
+ubus call pnshelper event_notify '{"src":3,"event":4,"detail":"1"}'
+```
+
+> [!NOTE]
+> `detail` 必须非空，否则 `pnshelper` 直接返回 `-1`（`invalid null pointer!`）。
+
+`examples/migpt` 里配置 `KEEP_AWAKE=true` 即可在每轮回复播完后自动进入连续对话。
+
+<details>
+<summary>这个补丁到底改了什么</summary>
+
+固件里多轮对话的实现本来就是**完整**的（`mipns_notify_do_multirounds` → `mipns_speech_event_local_multirounds` + `enable_wakeup_timer`），只是被两处拦住了。补丁各改 4 个字节放行，**全文件只差 8 个字节**。
+
+**① notify 分发跳转表里 `type 6` 指向了 default 分支**
+
+所以 `pnshelper` 把事件转过去之后，只会得到一句：
+
+```
+[mipns::notify]:[E]unexpected event type: 6!
+```
+
+**② 多轮对话只接受 `idle` 状态**
+
+`transmitend ---> idle` 只有三条路，而且**全部由 aivs 驱动**（`dialog finish` / `asr timeout` / `disconnected`）。`examples/migpt` 每轮都要重启 `mico_aivs_lab` 来打断小爱，aivs 一死，这三个通知谁也不会来，状态机就永远卡在 `transmitend`：
+
+```
+[mipns::worker]:[W]local multirounds when transmitend, ignore!
+```
+
+所以第二个补丁把状态跳转表里 `transmitend` 那一项直接指向 `idle` 的处理函数。依据是固件自己的行为——`local pre-wakeup, transmitend ---> pre-wakeup!` 说明从 `transmitend` 开一轮新对话本来就是支持的，只是多轮对话这条路径没放行。
+
+> 副作用：日志里会打 `local multirounds, idle ---> preparing!`，即使当时状态是 `transmitend`（复用了 idle 的分支，文案是写死的）。纯文案问题。
+
+脚本里所有位置都是**动态定位**的（模式匹配 + 字符串→字面量池→ldr 引用链）。注意 `cmp r3,#6` 那个状态机模式在 mipns 里有十几处，所以第二个补丁是靠各分支的日志字符串认出正确的那张表的。任何一步对不上都会直接报错退出，不会改错地方。
+
+生效后的日志（音箱上 `tail -f /var/log/messages`）：
+
+```
+xaudio_engine: enter set_wakeup_status
+xaudio_engine: enable asr = 1
+[mipns::worker]:[W]enter speech aivs enable voice wakeup!
+[mipns::ani]:[W]animation begin multirounds:7000 2
+[mipns::worker]:[W]local multirounds, idle ---> preparing!
+[mipns::worker]:[W]aivs prepared, preparing ---> prepared! dialog_id:xxx
+```
+
+> [!WARNING]
+> 该补丁只在 **LX06 v1.94.13** 上验证过。换固件版本时脚本会因为校验不通过而报错停下，不会默默改错位置。
+
+</details>
+
+<details>
+<summary>不想刷机？可以用 bind mount 开启</summary>
+
+`/usr` 是只读的 squashfs，但可以把改好的二进制放在 `/data` 里 bind mount 上去，**不用刷机、重启即还原**：
+
+```shell
+# 1. 把打好补丁的 mipns-xiaomi 传到音箱的 /data/mipns-patched
+#    （用 curl 传，scp/nc 在这个固件上都不好使）
+# 2. 在音箱上执行
+/etc/init.d/pns stop        # 运行中的 mipns 占着文件，必须先停
+mount -o bind /data/mipns-patched /usr/bin/mipns-xiaomi
+/etc/init.d/pns start
+```
+
+想让它开机自动生效，写进 `/data/init.sh` 即可。注意两点：
+
+- 要插在**启动 client 那行之前**——那行是阻塞的，写在后面永远不会执行
+- 补丁固件的 `/data/init.sh` 默认就是 open-xiaoai 客户端的自启动脚本，别整个覆盖掉
+
+</details>
 
 ## 高级选项
 

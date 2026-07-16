@@ -129,7 +129,34 @@ export class SpeakerManager implements ISpeaker {
   }
 
   /**
+   * 进入连续对话（多轮对话）
+   *
+   * 音箱会自己放提示音、点灯，并保持约 7 秒的收音窗口（时长由固件决定），
+   * 期间用户直接说话即可，无需再说唤醒词。超时没人说话会自动退出，不会一直收音。
+   *
+   * 注意：需要给音箱刷入开启了多轮对话的补丁固件，详见 packages/client-patch。
+   * 原版固件的 mipns 收到这个事件只会报 `unexpected event type: 6`，
+   * 但 pnshelper 照样返回 code 0，所以从返回值分辨不出来打没打补丁。
+   *
+   * 注意：detail 不能为空，否则 pnshelper 直接返回 -1（invalid null pointer）。
+   */
+  async startMultiRounds() {
+    const res = await this.runShell(
+      `ubus call pnshelper event_notify '${jsonEncode({
+        src: 3,
+        event: 4,
+        detail: "1",
+      })}'`
+    );
+    return res?.stdout.includes('"code": 0');
+  }
+
+  /**
    * （取消）唤醒小爱
+   *
+   * 注意：唤醒（awake = true）在小爱音箱 Pro（LX06）上无效，两个 src 都不是唤醒——
+   * 实测 src:1 是闹钟事件，mipns 收到后直接忽略；能唤醒的只有声学唤醒词。
+   * 想让音箱重新收音请改用 startMultiRounds()。
    */
   async wakeUp(
     awake = true,
@@ -235,12 +262,15 @@ export class SpeakerManager implements ISpeaker {
 
   /**
    * 打开/关闭麦克风
+   *
+   * 注意：event 7 是静音、event 8 是取消静音，别被数字的大小顺序骗了——
+   * mipns 收到 event 7 打印的是 `enter notify wakeup mute: 1`（1 = 静音）。
    */
   async setMic(on = true) {
     const res = await this.runShell(
       on
-        ? `ubus -t1 -S call pnshelper event_notify '{"src":3, "event":7}' 2>&1`
-        : `ubus -t1 -S call pnshelper event_notify '{"src":3, "event":8}' 2>&1`
+        ? `ubus -t1 -S call pnshelper event_notify '{"src":3, "event":8}' 2>&1`
+        : `ubus -t1 -S call pnshelper event_notify '{"src":3, "event":7}' 2>&1`
     );
     return res?.stdout.includes('"code":0');
   }
