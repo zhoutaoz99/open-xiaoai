@@ -4,9 +4,19 @@ import { jsonDecode } from "@mi-gpt/utils/parse";
 import type { Prettify } from "@mi-gpt/utils/typing";
 import { RustServer } from "./open-xiaoai.js";
 import { OpenXiaoAISpeaker } from "./speaker.js";
+import { TTS, type TTSConfig } from "./tts.js";
 import { randomUUID } from "node:crypto";
 
-export type OpenXiaoAIConfig = Prettify<EngineConfig<OpenXiaoAIEngine>>;
+export type OpenXiaoAIConfig = Prettify<
+  EngineConfig<OpenXiaoAIEngine> & {
+    /**
+     * 语音合成（TTS）配置
+     *
+     * 如需使用小爱音箱自带的语音合成服务，可以删除该配置
+     */
+    tts?: TTSConfig;
+  }
+>;
 
 const kDefaultOpenXiaoAIConfig: OpenXiaoAIConfig = {
   //
@@ -16,7 +26,12 @@ class OpenXiaoAIEngine extends MiGPTEngine {
   speaker = OpenXiaoAISpeaker;
 
   async start(config: OpenXiaoAIConfig) {
-    await super.start(deepMerge(kDefaultOpenXiaoAIConfig, config));
+    const mergedConfig: OpenXiaoAIConfig = deepMerge(
+      kDefaultOpenXiaoAIConfig,
+      config
+    );
+    TTS.init(mergedConfig.tts);
+    await super.start(mergedConfig);
     // 注册全局回调函数
     (global as any).RUST_CALLBACKS = {
       on_event: this.onEvent,

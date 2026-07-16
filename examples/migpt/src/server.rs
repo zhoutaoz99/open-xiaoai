@@ -1,6 +1,7 @@
 use neon::prelude::Context;
 use neon::types::JsUint8Array;
 use open_xiaoai::base::{AppError, VERSION};
+use open_xiaoai::services::audio::config::AudioConfig;
 use open_xiaoai::services::connect::data::{Event, Request, Response, Stream};
 use open_xiaoai::services::connect::handler::MessageHandler;
 use open_xiaoai::services::connect::message::{MessageManager, WsStream};
@@ -23,7 +24,21 @@ async fn test() -> Result<(), AppError> {
     //     .call_remote("start_recording", None, None)
     //     .await;
 
-    // let _ = RPC::instance().call_remote("start_play", None, None).await;
+    // 音频参数需要与 TTS 输出的音频流格式保持一致
+    let _ = RPC::instance()
+        .call_remote(
+            "start_play",
+            Some(json!(AudioConfig {
+                pcm: "noop".into(),
+                channels: 1,
+                bits_per_sample: 16,
+                sample_rate: 24000,
+                period_size: 1440 / 4,
+                buffer_size: 1440,
+            })),
+            None,
+        )
+        .await;
 
     Ok(())
 }

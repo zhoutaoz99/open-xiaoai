@@ -1,5 +1,6 @@
 import { jsonEncode } from "@mi-gpt/utils/parse";
 import { RustServer } from "./open-xiaoai.js";
+import { TTS } from "./tts.js";
 import type { ISpeaker } from "@mi-gpt/engine/base";
 
 export interface CommandResult {
@@ -65,6 +66,18 @@ class SpeakerManager implements ISpeaker {
   }) {
     if (bytes) {
       return RustServer.on_output_data(bytes) as Promise<boolean>;
+    }
+
+    if (!url && TTS.enabled) {
+      // 使用自定义的语音合成服务播放文字
+      const playing = TTS.play(text || "你好");
+      if (!blocking) {
+        return true;
+      }
+      if (await playing) {
+        return true;
+      }
+      // 合成失败时，回退到小爱音箱自带的语音合成服务
     }
 
     if (blocking) {

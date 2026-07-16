@@ -19,15 +19,52 @@ git clone https://github.com/idootop/open-xiaoai.git
 cd examples/migpt
 ```
 
-然后把 `config.ts` 文件里的配置修改成你自己的。
+然后修改 `.env.example` 文件里的配置，并重命名为 `.env`。
+
+```bash
+# 大模型服务配置，对应 config.ts 里的 openai 配置
+
+#你的大模型服务的 API 密钥
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+#接口地址（一般以 /v1 结尾，不包含 /chat/completions 部分）
+OPENAI_BASE_URL=https://api.deepseek.com
+
+#模型名称
+OPENAI_MODEL=deepseek-v4-flash
+
+#温度：取值 0-2，值越大回复越随机（删除该配置则使用服务商的默认值）
+OPENAI_TEMPERATURE=1
+
+#思考模式：true 开启，false 关闭（删除该配置则使用服务商的默认值）
+#注意：这是 DeepSeek 的参数格式，其他服务商可能不支持，此时请删除该配置
+#注意：开启思考模式后，上面的温度配置不生效
+OPENAI_THINKING=false
+
+
+# 语音合成服务配置，对应 config.ts 里的 tts 配置
+
+#你的语音合成服务的 API 密钥
+#如需使用小爱音箱自带的语音合成服务，请删除该配置
+TTS_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+#接口地址
+TTS_BASE_URL=https://api.xiaomimimo.com/v1
+
+#模型名称
+TTS_MODEL=mimo-v2.5-tts
+
+#音色
+TTS_VOICE=mimo_default
+```
+
+> [!TIP]
+> `.env` 文件不会被提交到 Git 仓库，你的 API 密钥不会泄露。
+
+提示词、自定义回复等其余配置，在 `config.ts` 文件里修改成你自己的。
 
 ```typescript
 export const kOpenXiaoAIConfig = {
-  openai: {
-    model: "gpt-4.1-mini",
-    baseURL: "https://api.openai.com/v1",
-    apiKey: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  },
   prompt: {
     system: "你是一个智能助手，请根据用户的问题给出回答。",
   },
@@ -46,7 +83,10 @@ export const kOpenXiaoAIConfig = {
 推荐使用以下命令，直接 Docker 一键运行。
 
 ```shell
-docker run -it --rm -p 4399:4399 -v $(pwd)/config.ts:/app/config.ts idootop/open-xiaoai-migpt:latest
+docker run -it --rm -p 4399:4399 \
+    --env-file $(pwd)/.env \
+    -v $(pwd)/config.ts:/app/config.ts \
+    idootop/open-xiaoai-migpt:latest
 ```
 
 ### 编译运行
@@ -77,7 +117,11 @@ pnpm dev
 1. 默认 Server 服务端口为 `4399`（比如 ws://192.168.31.227:4399），运行前请确保该端口未被其他程序占用。
 
 2. 默认 Rust Server 在启动时，并没有开启小爱音箱的录音能力。
-   如果你需要在 Node.js 端正常接收音频输入流，或者播放音频输出流，请将 `src/server.rs` 文件中被注释掉的 `start_recording` 和 `start_play` 代码加回来，然后重新编译运行。
+   如果你需要在 Node.js 端正常接收音频输入流，请将 `src/server.rs` 文件中被注释掉的 `start_recording` 代码加回来，然后重新编译运行。
+
+3. 在 `.env` 里配齐 `TTS_BASE_URL`、`TTS_API_KEY`、`TTS_MODEL`、`TTS_VOICE` 四项后，会使用自定义的语音合成服务（输出 24kHz PCM16LE 单声道音频流）来播放文字。
+   缺少其中任意一项，都会回退到小爱音箱自带的语音合成服务。
+   该音频流由 `src/server.rs` 中 `start_play` 的音频参数决定，如需更换其他格式的语音合成服务，记得同步修改这两处配置。
 
 > [!NOTE]
 > 本项目只是一个简单的演示程序，抛砖引玉。如果你想要更多的功能，比如唤醒词识别、语音转文字、连续对话等（甚至是对接 OpenAI 的 [Realtime API](https://platform.openai.com/docs/guides/realtime)），可参考本项目代码自行实现。

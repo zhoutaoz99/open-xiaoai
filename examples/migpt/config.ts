@@ -1,10 +1,11 @@
 import { sleep } from "@mi-gpt/utils";
+import { envString, getOpenAICreateParams } from "./migpt/env.js";
 import { OpenXiaoAIConfig } from "./migpt/xiaoai.js";
 
 export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
   openai: {
     /**
-     * 你的大模型服务提供商的接口地址
+     * 你的大模型服务提供商的接口地址（在 .env 文件里配置）
      *
      * 支持兼容 OpenAI 接口的大模型服务，比如：DeepSeek V3 等
      *
@@ -13,15 +14,43 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
      * - ❌ https://api.openai.com/v1/（最后多了一个 /
      * - ❌ https://api.openai.com/v1/chat/completions（不需要加 /chat/completions）
      */
-    baseURL: "https://api.openai.com/v1",
+    baseURL: envString("OPENAI_BASE_URL"),
     /**
-     * API 密钥
+     * API 密钥（在 .env 文件里配置）
      */
-    apiKey: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    apiKey: envString("OPENAI_API_KEY"),
     /**
-     * 模型名称
+     * 模型名称（在 .env 文件里配置）
      */
-    model: "gpt-4.1-mini",
+    model: envString("OPENAI_MODEL"),
+    extra: {
+      /**
+       * 思考模式、温度等额外的请求参数（在 .env 文件里配置）
+       */
+      createParams: getOpenAICreateParams(),
+    },
+  },
+  tts: {
+    /**
+     * 你的语音合成服务提供商的接口地址（在 .env 文件里配置）
+     *
+     * 支持兼容 OpenAI 接口的语音合成服务，比如：MiMo TTS 等
+     */
+    baseURL: envString("TTS_BASE_URL"),
+    /**
+     * API 密钥（在 .env 文件里配置）
+     *
+     * 注意：未配置密钥时，会使用小爱音箱自带的语音合成服务
+     */
+    apiKey: envString("TTS_API_KEY"),
+    /**
+     * 模型名称（在 .env 文件里配置）
+     */
+    model: envString("TTS_MODEL"),
+    /**
+     * 音色（在 .env 文件里配置）
+     */
+    voice: envString("TTS_VOICE"),
   },
   prompt: {
     /**

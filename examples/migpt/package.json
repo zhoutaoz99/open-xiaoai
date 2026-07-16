@@ -6,12 +6,13 @@
   "type": "module",
   "scripts": {
     "build": "cargo-cp-artifact -ac open_xiaoai_server migpt/open-xiaoai.node -- cargo build --release --message-format=json-render-diagnostics",
-    "start": "tsx migpt/index.ts",
+    "start": "tsx --env-file-if-exists=.env migpt/index.ts",
     "dev": "pnpm build && pnpm start"
   },
   "dependencies": {
     "@mi-gpt/engine": "1.2.1",
-    "@mi-gpt/utils": "1.1.1"
+    "@mi-gpt/utils": "1.1.1",
+    "openai": "^4.91.1"
   },
   "devDependencies": {
     "@mi-gpt/config": "1.1.0",
