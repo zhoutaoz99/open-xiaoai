@@ -9,8 +9,16 @@ export interface CommandResult {
   exit_code: number;
 }
 
-class SpeakerManager implements ISpeaker {
+export class SpeakerManager implements ISpeaker {
   status: "playing" | "paused" | "idle" = "idle";
+
+  /**
+   * 播报队列
+   *
+   * 注意：引擎播报 AI 回复和外部服务推送提醒可能同时发生，
+   * 两股音频流一起写进 aplay 会糊在一起，所以这里把播报串行化。
+   */
+  private queue: Promise<unknown> = Promise.resolve();
 
   /**
    * 获取播放状态
@@ -40,14 +48,10 @@ class SpeakerManager implements ISpeaker {
 
   /**
    * 播放文字、音频链接、音频流
+   *
+   * 注意：多处同时调用时会排队，等前一个播报完毕才会开始下一个
    */
-  async play({
-    text,
-    url,
-    bytes,
-    timeout = 10 * 60 * 1000,
-    blocking = false,
-  }: {
+  async play(options: {
     text?: string;
     url?: string;
     bytes?: Uint8Array;
@@ -63,7 +67,26 @@ class SpeakerManager implements ISpeaker {
      * 如果是则等到音频播放完毕才会返回
      */
     blocking?: boolean;
-  }) {
+  }): Promise<boolean> {
+    const task = this.queue.then(() => this._play(options));
+    // 前一个播报失败不能卡住后面的
+    this.queue = task.catch(() => undefined);
+    return task;
+  }
+
+  private async _play({
+    text,
+    url,
+    bytes,
+    timeout = 10 * 60 * 1000,
+    blocking = false,
+  }: {
+    text?: string;
+    url?: string;
+    bytes?: Uint8Array;
+    timeout?: number;
+    blocking?: boolean;
+  }): Promise<boolean> {
     if (bytes) {
       return RustServer.on_output_data(bytes) as Promise<boolean>;
     }

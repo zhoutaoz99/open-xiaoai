@@ -1,0 +1,23 @@
+{
+  "name": "open-xiaoai-assistant",
+  "version": "1.0.0",
+  "description": "小爱音箱外部对话服务（纯内存多轮对话）",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file-if-exists=.env assistant/index.ts",
+    "dev": "tsx watch --env-file-if-exists=.env assistant/index.ts"
+  },
+  "dependencies": {
+    "openai": "^4.91.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=18"
+  }
+}

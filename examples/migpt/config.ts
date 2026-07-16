@@ -1,34 +1,76 @@
 import { sleep } from "@mi-gpt/utils";
-import { envString, getOpenAICreateParams } from "./migpt/env.js";
+import { Agent } from "./migpt/agent.js";
+import { envBoolean, envList, envNumber, envString } from "./migpt/env.js";
 import { OpenXiaoAIConfig } from "./migpt/xiaoai.js";
 
+/**
+ * 只把这些关键词开头的消息转发给外部服务，其余交回小爱原生处理（在 .env 文件里配置）
+ *
+ * - 请问地球为什么是圆的？
+ * - 你知道世界上跑的最快的动物是什么吗？
+ *
+ * 注意：留空表示全部转发
+ */
+const kCallKeywords = envList("AGENT_CALL_KEYWORDS") ?? [];
+
 export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
-  openai: {
+  agent: {
     /**
-     * 你的大模型服务提供商的接口地址（在 .env 文件里配置）
+     * 你的外部对话服务的接口地址（在 .env 文件里配置）
      *
-     * 支持兼容 OpenAI 接口的大模型服务，比如：DeepSeek V3 等
+     * 接口协议详见 PROTOCOL.md
      *
-     * 注意：一般以 /v1 结尾，不包含 /chat/completions 部分
-     * - ✅ https://api.openai.com/v1
-     * - ❌ https://api.openai.com/v1/（最后多了一个 /
-     * - ❌ https://api.openai.com/v1/chat/completions（不需要加 /chat/completions）
+     * 注意：不包含 /chat 部分
+     * - ✅ http://127.0.0.1:8000
+     * - ❌ http://127.0.0.1:8000/chat
      */
-    baseURL: envString("OPENAI_BASE_URL"),
+    baseURL: envString("AGENT_BASE_URL"),
     /**
      * API 密钥（在 .env 文件里配置）
+     *
+     * 注意：未配置时不会发送 Authorization 请求头
      */
-    apiKey: envString("OPENAI_API_KEY"),
+    apiKey: envString("AGENT_API_KEY"),
     /**
-     * 模型名称（在 .env 文件里配置）
+     * 会话标识（在 .env 文件里配置）
+     *
+     * 注意：多轮对话的上下文完全由外部服务维护，migpt 侧不保留任何记忆
      */
-    model: envString("OPENAI_MODEL"),
-    extra: {
-      /**
-       * 思考模式、温度等额外的请求参数（在 .env 文件里配置）
-       */
-      createParams: getOpenAICreateParams(),
-    },
+    sessionId: envString("AGENT_SESSION_ID"),
+    /**
+     * 是否使用流式响应（在 .env 文件里配置）
+     */
+    stream: envBoolean("AGENT_STREAM"),
+    /**
+     * 首个事件的超时时长，单位毫秒（在 .env 文件里配置）
+     */
+    timeout: envNumber("AGENT_TIMEOUT_MS"),
+    /**
+     * 调用失败时的兜底播报话术（在 .env 文件里配置）
+     */
+    errorText: envString("AGENT_ERROR_TEXT"),
+  },
+  push: {
+    /**
+     * 提醒推送服务监听的端口（在 .env 文件里配置）
+     *
+     * 外部服务可以 POST /push 主动推送提醒，接口协议详见 PROTOCOL.md
+     *
+     * 注意：未配置时不会启动推送服务
+     */
+    port: envNumber("AGENT_PUSH_PORT"),
+    /**
+     * 监听地址（在 .env 文件里配置）
+     *
+     * 注意：在 Docker 里运行时必须是 0.0.0.0，否则容器外访问不到
+     */
+    host: envString("AGENT_PUSH_HOST"),
+    /**
+     * 推送密钥（在 .env 文件里配置）
+     *
+     * 注意：未配置时不校验，同网络下任何人都能让音箱说话
+     */
+    apiKey: envString("AGENT_PUSH_API_KEY"),
   },
   tts: {
     /**
@@ -52,50 +94,49 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
      */
     voice: envString("TTS_VOICE"),
   },
-  prompt: {
-    /**
-     * 系统提示词，如需关闭可设置为：''（空字符串）
-     */
-    system: "你是一个智能助手，请根据用户的问题给出回答。",
-  },
-  context: {
-    /**
-     * 每次对话携带的最大历史消息数（如需关闭可设置为：0）
-     */
-    historyMaxLength: 10,
-  },
   /**
-   * 只回答以下关键词开头的消息：
+   * 关闭引擎内置的大模型问答
    *
-   * - 请问地球为什么是圆的？
-   * - 你知道世界上跑的最快的动物是什么吗？
+   * 注意：置空后引擎不会再调用 askAI()，所有消息都由下面的 onMessage 接管，
+   * 关键词过滤改用 kCallKeywords 自己实现。
    */
-  callAIKeywords: ["请", "你"],
+  callAIKeywords: [],
   /**
-   * 自定义消息回复
+   * 把识别到的文字转发给外部服务，再把它返回的文字播报出来
    */
-  async onMessage(engine, { text }) {
-    if (text === "测试播放文字") {
-      return { text: "你好，很高兴认识你！" };
+  async onMessage(engine, msg) {
+    // 用户抢话时，取消上一条还没结束的请求
+    Agent.cancel();
+
+    if (!Agent.enabled) {
+      return;
     }
 
-    if (text === "测试播放音乐") {
-      return { url: "https://example.com/hello.mp3" };
+    if (
+      kCallKeywords.length &&
+      !kCallKeywords.some((k) => msg.text.startsWith(k))
+    ) {
+      // 返回 undefined 表示交回小爱原生处理
+      return;
     }
 
-    if (text === "测试其他能力") {
-      // 打断原来小爱的回复
-      await engine.speaker.abortXiaoAI();
+    // 必须先打断小爱，否则它会用自己的云端回答跟我们抢着说话
+    await engine.speaker.abortXiaoAI();
 
-      // 播放文字
-      await sleep(2000); // 打断小爱后需要等待 2 秒，使其恢复运行后才能继续 TTS
-      await engine.speaker.play({ text: "你好，很高兴认识你！", blocking: true });
+    const reply = await Agent.chat(msg);
 
-      // 播放音频链接
-      await engine.speaker.play({ url: "https://example.com/hello.mp3" });
-
-      // 告诉 MiGPT 已经处理过这条消息了，不再使用默认的 AI 回复
+    if (reply.aborted) {
+      // 用户抢话了，静默放弃这条回复
       return { handled: true };
     }
+
+    if (reply.fallback) {
+      // 上面已经把小爱打断了，这里要等它恢复运行才能重新提问
+      await sleep(2000);
+      await engine.speaker.askXiaoAI(msg.text);
+      return { handled: true };
+    }
+
+    return { text: reply.text, url: reply.url, stream: reply.stream };
   },
 };

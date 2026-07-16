@@ -31,7 +31,7 @@ export function envBoolean(key: string): boolean | undefined {
 }
 
 /**
- * 读取逗号分隔的列表配置，比如：请,你
+ * 读取逗号分隔的列表配置，比如：重新开始,清空记忆
  */
 export function envList(key: string): string[] | undefined {
   const items = envString(key)

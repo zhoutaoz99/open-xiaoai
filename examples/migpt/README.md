@@ -7,10 +7,20 @@
 > [!TIP]
 > 想了解从唤醒到语音输出的完整链路（含架构图和时序图），请查看 [👉 端到端链路详解](./ARCHITECTURE.md)
 
+> [!IMPORTANT]
+> 本项目**不再自己调用大模型**，只负责唤醒、语音识别和语音播报。
+> 识别到的文字会转发给一个**外部对话服务**，再把它返回的文字播报出来。
+>
+> - 接口协议：[👉 PROTOCOL.md](./PROTOCOL.md)
+> - 开箱即用的外部服务：[👉 examples/assistant](../assistant)（纯内存多轮对话，原来的 `OPENAI_*` 配置搬过去就能用）
+
 ## 快速开始
 
 > [!NOTE]
-> 继续下面的操作之前，你需要先在小爱音箱上启动运行 Rust 补丁程序 [👉 教程](../../packages/client-rust/README.md)
+> 继续下面的操作之前，你需要：
+>
+> 1. 在小爱音箱上启动运行 Rust 补丁程序 [👉 教程](../../packages/client-rust/README.md)
+> 2. 准备好一个外部对话服务，可以直接用 [examples/assistant](../assistant)
 
 首先，克隆仓库代码到本地。
 
@@ -25,24 +35,32 @@ cd examples/migpt
 然后修改 `.env.example` 文件里的配置，并重命名为 `.env`。
 
 ```bash
-# 大模型服务配置，对应 config.ts 里的 openai 配置
+# 外部对话服务配置，对应 config.ts 里的 agent 配置
+# 接口协议详见 PROTOCOL.md，参考实现见 examples/assistant
 
-#你的大模型服务的 API 密钥
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#你的外部对话服务的接口地址（不包含 /chat 部分）
+#注意：删除该配置后，所有消息都会交回小爱原生处理
+AGENT_BASE_URL=http://127.0.0.1:8000
 
-#接口地址（一般以 /v1 结尾，不包含 /chat/completions 部分）
-OPENAI_BASE_URL=https://api.deepseek.com
+#API 密钥（删除该配置则不发送 Authorization 请求头）
+AGENT_API_KEY=
 
-#模型名称
-OPENAI_MODEL=deepseek-v4-flash
+#会话标识，外部服务据此维护多轮上下文
+AGENT_SESSION_ID=default
 
-#温度：取值 0-2，值越大回复越随机（删除该配置则使用服务商的默认值）
-OPENAI_TEMPERATURE=1
+#只转发以下关键词开头的消息，其余交回小爱原生处理（英文逗号分隔）
+#删除该配置或留空表示全部转发
+AGENT_CALL_KEYWORDS=
 
-#思考模式：true 开启，false 关闭（删除该配置则使用服务商的默认值）
-#注意：这是 DeepSeek 的参数格式，其他服务商可能不支持，此时请删除该配置
-#注意：开启思考模式后，上面的温度配置不生效
-OPENAI_THINKING=false
+
+# 提醒推送服务配置，对应 config.ts 里的 push 配置
+# 外部服务可以 POST /push 主动让音箱说话，比如定时提醒
+
+#推送服务监听的端口（删除该配置则不启动推送服务）
+AGENT_PUSH_PORT=4400
+
+#推送密钥（删除该配置则不校验，同网络下任何人都能让音箱说话）
+AGENT_PUSH_API_KEY=
 
 
 # 语音合成服务配置，对应 config.ts 里的 tts 配置
@@ -64,19 +82,23 @@ TTS_VOICE=mimo_default
 > [!TIP]
 > `.env` 文件不会被提交到 Git 仓库，你的 API 密钥不会泄露。
 
-提示词、自定义回复等其余配置，在 `config.ts` 文件里修改成你自己的。
+> [!NOTE]
+> 完整的配置项见 `.env.example`。系统提示词、模型、多轮对话记忆这些**都在外部服务那边配**，migpt 不再关心。
+
+自定义回复等逻辑，在 `config.ts` 的 `onMessage` 钩子里修改成你自己的。
 
 ```typescript
-export const kOpenXiaoAIConfig = {
-  prompt: {
-    system: "你是一个智能助手，请根据用户的问题给出回答。",
-  },
-  async onMessage(engine, { text }) {
-    if (text === "测试") {
-      return { text: "你好，很高兴认识你！" };
-    }
-  },
-};
+async onMessage(engine, msg) {
+  // 本地快捷指令：不走外部服务，直接回复
+  if (msg.text === "测试") {
+    // 记得先打断小爱，否则它会用自己的答案跟你抢着说话
+    await engine.speaker.abortXiaoAI();
+    return { text: "你好，很高兴认识你！" };
+  }
+
+  // 其余消息转发给外部对话服务（默认逻辑）
+  // ...
+}
 ```
 
 ### Docker 运行
@@ -86,11 +108,15 @@ export const kOpenXiaoAIConfig = {
 推荐使用以下命令，直接 Docker 一键运行。
 
 ```shell
-docker run -it --rm -p 4399:4399 \
+docker run -it --rm -p 4399:4399 -p 4400:4400 \
     --env-file $(pwd)/.env \
     -v $(pwd)/config.ts:/app/config.ts \
     idootop/open-xiaoai-migpt:latest
 ```
+
+> [!TIP]
+> `4400` 是提醒推送服务的端口（`AGENT_PUSH_PORT`），不需要外部服务主动推送提醒的话可以不映射。
+> 另外容器里访问宿主机上的外部对话服务，`AGENT_BASE_URL` 要写 `http://host.docker.internal:8000` 而不是 `127.0.0.1`。
 
 ### 编译运行
 
@@ -118,6 +144,7 @@ pnpm dev
 ## 注意事项
 
 1. 默认 Server 服务端口为 `4399`（比如 ws://192.168.31.227:4399），运行前请确保该端口未被其他程序占用。
+   配了 `AGENT_PUSH_PORT` 时还会额外占用一个端口（默认 `4400`）用于接收外部服务推送的提醒。
 
 2. 默认 Rust Server 在启动时，并没有开启小爱音箱的录音能力。
    如果你需要在 Node.js 端正常接收音频输入流，请将 `src/server.rs` 文件中被注释掉的 `start_recording` 代码加回来，然后重新编译运行。
