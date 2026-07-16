@@ -22,6 +22,8 @@ set -e
 #   ubus call pnshelper event_notify '{"src":3,"event":4,"detail":"1"}'
 #
 # 注意：detail 必须非空，否则 pnshelper 会直接返回 -1（invalid null pointer）。
+#
+# 这两处是怎么定位出来的、以及固件的组件职责和状态机，详见 ../../HACKING.md
 
 python3 - "usr/bin/mipns-xiaomi" <<'PYTHON'
 import struct
