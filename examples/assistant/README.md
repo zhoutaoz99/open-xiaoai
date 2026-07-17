@@ -31,6 +31,7 @@
 | --- | --- |
 | 对话与提炼 | 左边一段段列出**每次聊天**，选一段，右边就是那次的完整对话；每轮底下跟着**这轮之后它记住了什么**（新增/更新/删除了哪条）、什么都没记；另一个页签是每次巩固把**画像改成了什么**（改前改后对照）。整页 **1 秒轮询**，顶上有条实时状态：这会儿在对话、在闲置倒计时、还是在巩固画像 |
 | 记忆库 | 所有明细，按类型/命中/重要度筛排，**手动删除**；最底下有**清除所有数据**（对话+记忆+画像，灵魂不动） |
+| 待办 | 它替你记着的事。带时间又开了提醒的**到点会通过音箱主动开口**；能手动加、标完成、删除。设计见 [`docs/todo.md`](docs/todo.md) |
 | 灵魂 | 编辑 `soul.md`，存盘下一句话就生效 |
 | 画像 | 编辑 `profile.md`，手写的内容不会被巩固抹掉 |
 
@@ -121,7 +122,7 @@ examples/assistant/
 
 **为什么没有 Redis**：骨架模板的数据层是 PG + Redis，这里只有 PG。会话窗口是纯内存的（下面有解释），单进程单实例也没有跨进程缓存的需求——加一个谁都不读的 Redis 只是多一个要维护的东西。
 
-HTTP 接口：`POST /chat`、`GET /health`、`GET /status`、`GET /memories`、`DELETE /memories/:id`、`POST /memories/consolidate`、`POST /memories/wipe`、`GET /memories/snapshots`、`GET /extractions`、`GET /turns`、`GET /conversations`、`GET /sessions`、`GET|PUT /soul`、`GET|PUT /profile`。
+HTTP 接口：`POST /chat`、`GET /health`、`GET /status`、`GET /memories`、`DELETE /memories/:id`、`POST /memories/consolidate`、`POST /memories/wipe`、`GET /memories/snapshots`、`GET /extractions`、`GET /turns`、`GET /conversations`、`GET /sessions`、`GET|POST /todos`、`PATCH|DELETE /todos/:id`、`GET|PUT /soul`、`GET|PUT /profile`。
 
 ## 和 migpt 对接
 
@@ -131,6 +132,8 @@ HTTP 接口：`POST /chat`、`GET /health`、`GET /status`、`GET /memories`、`
 | --- | --- | --- |
 | `ASSISTANT_PORT=8000` | `AGENT_BASE_URL=http://127.0.0.1:8000` | 地址要指得对 |
 | `ASSISTANT_API_KEY=xxx` | `AGENT_API_KEY=xxx` | 要一致，都留空则不校验 |
+| `AGENT_PUSH_URL=http://127.0.0.1:4400` | `AGENT_PUSH_PORT=4400` | 主动提醒的推送通道；migpt 要配这个端口才打开，见 PROTOCOL.md 第十节 |
+| `AGENT_PUSH_API_KEY=xxx` | `AGENT_PUSH_API_KEY=xxx` | 推送鉴权，要一致，都留空则不校验 |
 
 migpt 侧的 `OPENAI_*` 可以全部删掉（内置大模型已被绕过），`TTS_*` 必须保留。
 
@@ -203,6 +206,17 @@ migpt 侧的 `OPENAI_*` 可以全部删掉（内置大模型已被绕过），`T
 | `MEMORY_WIPE_KEYWORDS` | 清空所有记忆 | 说这句话清空**长期记忆**（精确匹配整句） |
 | `MEMORY_WIPE_TEXT` | 好的，我已经把记住的事情都忘掉了。 | 清空后的回复话术 |
 | `MEMORY_OPENAI_*` | 复用 `OPENAI_*` | 抽取/巩固专用模型，可以配个便宜的 |
+
+**待办与主动提醒**：
+
+| 配置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TODO_ENABLED` | true | 总开关，`false` 则不挂待办工具、不启动提醒调度器 |
+| `AGENT_PUSH_URL` | （空） | migpt 推送地址，形如 `http://127.0.0.1:4400`；不配则提醒只打日志（待办照常能记能查） |
+| `AGENT_PUSH_API_KEY` | （空） | 推送鉴权，要和 migpt 的 `AGENT_PUSH_API_KEY` 一致 |
+| `REMINDER_SCAN_SECONDS` | 60 | 调度器多少秒扫一次到期待办 |
+| `REMINDER_MAX_LATE_MINUTES` | 120 | 迟到超过这个时长就不再补播（防 migpt 恢复后一次性轰炸） |
+| `REMINDER_DEFAULT_TIME` | 09:00 | 只给了日期没给时刻的待办，默认几点提醒 |
 
 ## 人格与记忆
 
@@ -325,6 +339,23 @@ curl -s http://127.0.0.1:8000/memories/snapshots | jq
 ```
 
 推送型记忆等不来检索——你问「今天有什么安排」模型会去查，但「明天有钢琴课」应该在聊到出游时**不查自知**。
+
+### 到点主动开口提醒你：待办
+
+上面的临期日程是**拉**（pull）——聊到相关话题时它才现身。待办是**推**（push）：说一句「提醒我三点开会」，它记下来，到了三点**主动通过音箱开口**，不用你先问。
+
+```
+你：提醒我下午三点开会
+它：好嘞，三点提醒你开会。
+（到了三点，音箱主动响起）
+它：主人，三点啦，该开会咯，别迟到～
+```
+
+- 「提醒我…」「别让我忘了…」走 `add_todo` 工具当场记下；「记一下要买牛奶」这种不用提醒的，只进清单不打扰（前台待办页看得到）。
+- 到点的措辞是**用灵魂的口吻现场生成的**，不是干巴巴的模板——改了 `soul.md`，提醒的语气也跟着变。
+- 投递走 migpt 的**推送通道**（`AGENT_PUSH_URL` → migpt 的 `/push`，见 [`PROTOCOL.md`](../migpt/PROTOCOL.md) 第十节）。**没配推送地址时提醒只在后端打日志**，待办功能照常能记能查。
+- 触发状态落库，**重启不会重播、也不会漏播**；migpt 断线一段时间再恢复，超过 `REMINDER_MAX_LATE_MINUTES` 的过期提醒会跳过，不一次性轰炸。
+- **待办和记忆是两回事**：「提醒我…」进待办，不进记忆库；`清空所有记忆` 也**不碰待办**（那是你未兑现的承诺，不是记忆）。设计详见 [`docs/todo.md`](docs/todo.md)。
 
 ### 服务商的流式工具调用不稳？换 marker
 

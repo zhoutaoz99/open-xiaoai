@@ -187,5 +187,30 @@ export class PostgresService implements OnModuleInit, OnModuleDestroy {
     await this.query(
       `CREATE INDEX IF NOT EXISTS memory_snapshots_created_idx ON memory_snapshots (created_at DESC)`
     );
+
+    // 待办与主动提醒
+    //
+    // 注意：这和 memories 里的 event/task 是两回事（见 docs/todo.md 三）。
+    // due_at 是 timestamptz（精确到分的播报时刻），不是 memories.due_at 那种
+    // 日历日字符串——主动提醒要几点几分，日期不够用。
+    // fired_at 是触发幂等的关键：非空就不再 fire，重启也不重放。
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS todos (
+        id            text PRIMARY KEY,
+        content       text NOT NULL,
+        due_at        timestamptz,
+        remind        boolean NOT NULL DEFAULT true,
+        status        text NOT NULL DEFAULT 'pending',
+        fired_at      timestamptz,
+        snoozed_until timestamptz,
+        source        text NOT NULL DEFAULT 'voice',
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        updated_at    timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    // 调度器每分钟扫"到期未 fire 的 pending 提醒"，给这条路建索引
+    await this.query(
+      `CREATE INDEX IF NOT EXISTS todos_due_idx ON todos (due_at) WHERE status = 'pending'`
+    );
   }
 }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const kLinks = [
   { href: "/", label: "对话与提炼" },
   { href: "/memories", label: "记忆库" },
+  { href: "/todos", label: "待办" },
   { href: "/profile", label: "画像" },
   { href: "/soul", label: "灵魂" },
 ];

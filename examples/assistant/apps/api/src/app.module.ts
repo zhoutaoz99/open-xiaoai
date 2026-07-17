@@ -5,6 +5,7 @@ import { DataModule } from "./data/data.module";
 import { LLMModule } from "./llm/llm.module";
 import { MemoryModule } from "./memory/memory.module";
 import { SoulModule } from "./soul/soul.module";
+import { TodoModule } from "./todo/todo.module";
 import { TranscriptModule } from "./transcript/transcript.module";
 
 /**
@@ -13,11 +14,12 @@ import { TranscriptModule } from "./transcript/transcript.module";
  * - memory     记忆库、抽取、巩固、提炼记录
  * - transcript 对话轮次
  * - soul       灵魂与画像（两份 Markdown 文件）
+ * - todo       待办与主动提醒（到点走 migpt 推送通道播报）
  *
  * data 和 llm 是 @Global 的基础设施，各域直接注入，不用重复 import。
  */
 @Module({
-  imports: [DataModule, LLMModule, SoulModule, TranscriptModule, MemoryModule, ChatModule],
+  imports: [DataModule, LLMModule, SoulModule, TranscriptModule, MemoryModule, TodoModule, ChatModule],
   controllers: [AppController],
 })
 export class AppModule {}

@@ -19,6 +19,7 @@ const kApiKey = process.env.ASSISTANT_API_KEY;
  */
 const kAllowed = [
   "memories",
+  "todos",
   "extractions",
   "turns",
   "conversations",
@@ -38,7 +39,8 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   const url = new URL(`${kApiUrl}/${path.join("/")}`);
   url.search = req.nextUrl.search;
 
-  const body = req.method === "GET" || req.method === "DELETE" ? undefined : await req.text();
+  const body =
+    req.method === "GET" || req.method === "DELETE" ? undefined : await req.text();
 
   try {
     const res = await fetch(url, {
@@ -63,4 +65,4 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   }
 }
 
-export { proxy as GET, proxy as POST, proxy as PUT, proxy as DELETE };
+export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };

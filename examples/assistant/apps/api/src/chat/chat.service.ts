@@ -4,8 +4,9 @@ import { LLM, toolCallMessage } from "../llm/llm.service";
 import { MAIN_LLM } from "../llm/llm.types";
 import { kMarkerPrefix, kMarkerSuffix, MarkerSniffer } from "../memory/marker";
 import { MemoryService } from "../memory/memory.service";
-import { MEMORY_CONFIG, type MemoryConfig } from "../memory/memory.types";
+import { MEMORY_CONFIG, nowISO, type MemoryConfig } from "../memory/memory.types";
 import { SoulService } from "../soul/soul.service";
+import { TodoService } from "../todo/todo.service";
 import { SessionService } from "./session.service";
 
 /**
@@ -18,9 +19,16 @@ interface StepContext {
    */
   hint: string;
   /**
-   * 这一轮还允不允许检索（到了上限就不允许）
+   * 这一轮还允不允许检索记忆（到了往返上限就不允许）
    */
   canSearch: boolean;
+  /**
+   * 这一轮还允不允许调待办工具（同样受往返上限约束）
+   *
+   * 注意：和 canSearch 分开，是为了让 marker 传输路径（stepMarker）保持
+   * 只认记忆、一个字不变——待办工具只走标准 function calling（stepTools）。
+   */
+  canTodo: boolean;
   signal: AbortSignal;
   stream: boolean;
   /**
@@ -40,7 +48,8 @@ export class ChatService implements OnModuleInit {
     @Inject(MEMORY_CONFIG) private config: MemoryConfig,
     private sessions: SessionService,
     private soul: SoulService,
-    private memory: MemoryService
+    private memory: MemoryService,
+    private todo: TodoService
   ) {}
 
   onModuleInit() {
@@ -92,8 +101,10 @@ export class ChatService implements OnModuleInit {
       const context: StepContext = {
         messages,
         hint,
-        // 到了上限就不再给检索的机会，逼模型作答
+        // 到了上限就不再给工具，逼模型作答。数的是"带工具的往返轮次"，
+        // 记忆检索和待办操作共用这个计数——真正要防的是查完再查停不下来的循环
         canSearch: this.memory.enabled && searched < searchMaxCalls,
+        canTodo: this.todo.enabled && searched < searchMaxCalls,
         signal,
         stream: !!onDelta,
         emit,
@@ -111,31 +122,40 @@ export class ChatService implements OnModuleInit {
   }
 
   /**
-   * 标准 function calling：模型发起 tool_call，我们查完把 tool 消息续上
+   * 标准 function calling：模型发起 tool_call，我们执行完把 tool 消息续上
+   *
+   * 注意：记忆和待办的工具在这里合并声明、按名字 dispatch 到各自的 owner。
+   * 检索是本地同步的、待办要落库是异步的，所以统一 await。
    */
   private async stepTools(ctx: StepContext): Promise<boolean> {
-    const { messages, canSearch, signal } = ctx;
-    const options = { signal, ...(canSearch ? { tools: this.memory.tools() } : {}) };
+    const { messages, canSearch, canTodo, signal } = ctx;
+    const todoTools = canTodo ? this.todo.tools() : [];
+    const tools = [...(canSearch ? this.memory.tools() : []), ...todoTools];
+    const options = { signal, ...(tools.length ? { tools } : {}) };
     const result = ctx.stream
       ? await this.llm.chatStream(messages, { ...options, onDelta: ctx.emit })
       : await this.llm.chat(messages, options);
     if (!ctx.stream) {
       ctx.emit(result.content);
     }
-    if (!canSearch || !result.toolCalls.length) {
+    if (!tools.length || !result.toolCalls.length) {
       return false;
     }
 
-    ctx.playFiller();
+    // 只有真发起了记忆检索才播"让我想想"——那一句是为了盖住检索多出来的一秒往返；
+    // 待办工具很快，加这个停顿反而奇怪
+    if (result.toolCalls.some((c) => c.name === "search_memory")) {
+      ctx.playFiller();
+    }
 
     // 每个 tool_call 都必须有一条对应的 tool 消息，否则下一次请求会被服务端打回
     messages.push(toolCallMessage(result));
+    const todoNames = new Set(todoTools.map((t) => t.function.name));
     for (const call of result.toolCalls) {
-      messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        content: this.memory.runTool(call, ctx.hint),
-      });
+      const content = todoNames.has(call.name)
+        ? await this.todo.runTool(call)
+        : this.memory.runTool(call, ctx.hint);
+      messages.push({ role: "tool", tool_call_id: call.id, content });
     }
     return true;
   }
@@ -221,11 +241,21 @@ export class ChatService implements OnModuleInit {
    * 条目少而具体，不构成注意力污染。
    */
   private userMessage(text: string): string {
-    const upcoming = this.memory.upcoming();
-    if (!upcoming.length) {
-      return text;
-    }
-    const list = upcoming.map((e) => `- ${e.dueAt} ${e.content}`).join("\n");
-    return `【接下来几天的安排】\n${list}\n\n【用户说】${text}`;
+    // 当前时刻必须给到模型：system 里只有日期（"今天是…"），算不出"两分钟后"
+    // "半小时后"这类相对提醒——没有时间基准，模型只能瞎猜。放在动态区而不是
+    // system prompt：system 要天级稳定、对前缀缓存友好，精确到分的时间每次都变，
+    // 塞进 system 会把前缀缓存打穿。
+    const now = `【现在】${nowISO().slice(0, 16).replace("T", " ")}`;
+
+    // 记忆里的临期 event/task（dueAt 是日历日）和用户设的临期待办（dueAt 是时刻），
+    // 并成一份"接下来几天的安排"。前者是被动记下的，后者是明确要做的，都值得让模型
+    // 在对话里不查自知。主动提醒是另一条独立的路（调度器到点播报），互不影响。
+    const lines = [
+      ...this.memory.upcoming().map((e) => `- ${e.dueAt} ${e.content}`),
+      ...this.todo.upcoming().map((t) => `- ${(t.dueAt ?? "").slice(0, 16).replace("T", " ")} ${t.content}`),
+    ];
+    const schedule = lines.length ? `\n【接下来几天的安排】\n${lines.join("\n")}` : "";
+
+    return `${now}${schedule}\n\n【用户说】${text}`;
   }
 }

@@ -127,6 +127,27 @@ export interface SoulDocument {
   maxChars?: number;
 }
 
+/**
+ * 待办
+ *
+ * 注意：对应 apps/api/src/todo/todo.types.ts。dueAt 是**时刻**（带时区偏移），
+ * 不是记忆里 event/task 那种日历日——主动提醒要精确到分。
+ */
+export type TodoStatus = "pending" | "done" | "cancelled";
+
+export interface Todo {
+  id: string;
+  content: string;
+  dueAt: string | null;
+  remind: boolean;
+  status: TodoStatus;
+  firedAt: string | null;
+  snoozedUntil: string | null;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MemorySnapshot {
   id: string;
   reason: string;

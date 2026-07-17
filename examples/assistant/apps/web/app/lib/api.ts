@@ -7,6 +7,7 @@ import type {
   SessionSummary,
   SoulDocument,
   StatusInfo,
+  Todo,
   Turn,
 } from "./api-types";
 
@@ -106,6 +107,35 @@ export const api = {
   wipe: () => request<{ ok: boolean }>("memories/wipe", { method: "POST" }),
 
   snapshots: () => request<{ snapshots: MemorySnapshot[] }>("memories/snapshots"),
+
+  /**
+   * 待办列表。status 省略则返回全部
+   */
+  todos: (params: { status?: string } = {}) =>
+    request<{ enabled: boolean; todos: Todo[] }>(`todos?${query(params)}`),
+
+  addTodo: (input: { content: string; dueAt?: string | null; remind?: boolean }) =>
+    request<Todo>("todos", { method: "POST", body: JSON.stringify(input) }),
+
+  updateTodo: (
+    id: string,
+    patch: { content?: string; dueAt?: string | null; remind?: boolean; status?: string }
+  ) =>
+    request<Todo>(`todos/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
+  completeTodo: (id: string) =>
+    request<Todo>(`todos/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    }),
+
+  deleteTodo: (id: string) =>
+    request<{ ok: boolean; id: string }>(`todos/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
 
   soul: () => request<SoulDocument>("soul"),
   saveSoul: (text: string) =>

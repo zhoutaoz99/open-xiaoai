@@ -3,6 +3,7 @@ import type { DatabaseConfig } from "./data/data.types";
 import type { LLMConfig } from "./llm/llm.types";
 import type { MemoryConfig } from "./memory/memory.types";
 import type { SoulConfig } from "./soul/soul.types";
+import type { TodoConfig } from "./todo/todo.types";
 import { envBoolean, envList, envNumber, envString, getOpenAICreateParams } from "./env";
 
 export interface AssistantConfig {
@@ -22,6 +23,7 @@ export interface AssistantConfig {
   session: SessionConfig;
   soul: SoulConfig;
   memory: MemoryConfig;
+  todo: TodoConfig;
 }
 
 /**
@@ -132,6 +134,7 @@ export const kAssistantConfig: AssistantConfig = {
   },
   soul: getSoulConfig(),
   memory: getMemoryConfig(),
+  todo: getTodoConfig(),
 };
 
 /**
@@ -256,5 +259,47 @@ function getMemoryConfig(): MemoryConfig {
       apiKey: envString("MEMORY_OPENAI_API_KEY") ?? envString("OPENAI_API_KEY"),
       model: envString("MEMORY_OPENAI_MODEL") ?? envString("OPENAI_MODEL"),
     },
+  };
+}
+
+/**
+ * 待办与主动提醒配置
+ *
+ * 注意：措辞用的模型直接复用记忆模型（MEMORY_LLM），不单独配一份——
+ * 抽取、巩固、提醒措辞都是后台的便宜活儿，共用一个便宜模型就够了。
+ */
+function getTodoConfig(): TodoConfig {
+  return {
+    /**
+     * 待办总开关（在 .env 文件里配置）
+     *
+     * 注意：关了不挂待办工具、不启动提醒调度器
+     */
+    enabled: envBoolean("TODO_ENABLED") ?? true,
+    /**
+     * migpt 的推送地址，形如 http://127.0.0.1:4400（在 .env 文件里配置）
+     *
+     * 注意：这条推送通道早在 examples/migpt/PROTOCOL.md 里定义好了，
+     * 到点主动提醒就走它。没配则提醒只打日志（功能降级不报错）。
+     */
+    pushUrl: envString("AGENT_PUSH_URL"),
+    /**
+     * 推送鉴权密钥，要和 migpt 的 AGENT_PUSH_API_KEY 一致（在 .env 文件里配置）
+     */
+    pushApiKey: envString("AGENT_PUSH_API_KEY"),
+    /**
+     * 调度器扫描间隔，单位秒（在 .env 文件里配置）
+     */
+    scanSeconds: envNumber("REMINDER_SCAN_SECONDS") ?? 60,
+    /**
+     * 迟到多久就不再补播，单位分钟（在 .env 文件里配置）
+     *
+     * 注意：migpt 断线一段时间再恢复，不该把积压的提醒一口气全念了
+     */
+    maxLateMinutes: envNumber("REMINDER_MAX_LATE_MINUTES") ?? 120,
+    /**
+     * 只给了日期没给时刻的待办，默认几点提醒，形如 09:00（在 .env 文件里配置）
+     */
+    defaultTime: envString("REMINDER_DEFAULT_TIME") ?? "09:00",
   };
 }
