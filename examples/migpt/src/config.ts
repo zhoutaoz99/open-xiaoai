@@ -1,7 +1,7 @@
 import { sleep } from "@mi-gpt/utils";
-import { Agent } from "./migpt/agent.js";
-import { envBoolean, envList, envNumber, envString } from "./migpt/env.js";
-import { OpenXiaoAIConfig } from "./migpt/xiaoai.js";
+import { Agent } from "./agent.js";
+import { envBoolean, envList, envNumber, envString } from "./env.js";
+import { OpenXiaoAIConfig } from "./xiaoai.js";
 
 /**
  * 只把这些关键词开头的消息转发给外部服务，其余交回小爱原生处理（在 .env 文件里配置）

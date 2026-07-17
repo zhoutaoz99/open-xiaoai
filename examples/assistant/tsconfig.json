@@ -12,6 +12,6 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  "include": ["assistant", "config.ts"],
+  "include": ["src"],
   "exclude": ["node_modules"]
 }

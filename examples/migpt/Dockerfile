@@ -45,7 +45,7 @@ FROM ubuntu:22.04 AS runner
 
 WORKDIR /app
 
-COPY --from=builder /app/migpt /app/migpt
+COPY --from=builder /app/src /app/src
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/tsconfig.json /app/tsconfig.json
 COPY --from=builder /app/node_modules /app/node_modules

@@ -19,7 +19,7 @@
                    ─▶ 🔊
 ```
 
-原来写在 `examples/migpt/config.ts` 里的大模型配置（`OPENAI_*`、系统提示词、历史轮数）全部搬到了这里。
+原来写在 `examples/migpt/src/config.ts` 里的大模型配置（`OPENAI_*`、系统提示词、历史轮数）全部搬到了这里。
 
 ## 快速开始
 

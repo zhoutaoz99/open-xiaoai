@@ -205,7 +205,7 @@ payload.results[0].text 非空
 InstructionMonitor
   → MessageManager.send_event("instruction", { NewLine: "..." })
   → WebSocket（:4399，二进制/文本帧）
-  → AppServer::on_stream / on_event（examples/migpt/src/server.rs）
+  → AppServer::on_stream / on_event（examples/migpt/rust/server.rs）
   → NodeManager::call_fn("on_event")   // Rust → JS 跨线程桥接（neon Channel）
   → global.RUST_CALLBACKS.on_event(json)
   → OpenXiaoAIEngine.onEvent（migpt/xiaoai.ts:69）
@@ -349,7 +349,7 @@ client.chat.completions.create({
 ### ⑦ 语音输出
 
 ```
-on_output_data(bytes)                       // examples/migpt/src/lib.rs:34
+on_output_data(bytes)                       // examples/migpt/rust/lib.rs:34
   → MessageManager.send_stream("play", bytes)
   → WebSocket 二进制帧
   → client.rs on_stream()：tag === "play"   // packages/client-rust/src/bin/client.rs:165
@@ -488,15 +488,15 @@ POST http://{migpt}:{AGENT_PUSH_PORT}/push
 | 音箱端主程序 | `packages/client-rust/src/bin/client.rs` |
 | 音频播放（aplay） | `packages/client-rust/src/services/audio/play.rs` |
 | 通信协议（WebSocket） | `packages/client-rust/src/services/connect/data.rs` |
-| 服务端 WebSocket | `examples/migpt/src/server.rs` |
-| Rust ↔ JS 桥接 | `examples/migpt/src/node.rs` · `src/lib.rs` |
-| 引擎与事件分发 | `examples/migpt/migpt/xiaoai.ts` |
-| **外部服务客户端** | `examples/migpt/migpt/agent.ts` |
-| **提醒推送服务** | `examples/migpt/migpt/push.ts` |
-| 设备控制与播报队列 | `examples/migpt/migpt/speaker.ts` |
-| 语音合成 | `examples/migpt/migpt/tts.ts` |
-| 用户配置与消息钩子 | `examples/migpt/config.ts` |
-| 环境变量读取 | `examples/migpt/migpt/env.ts` |
+| 服务端 WebSocket | `examples/migpt/rust/server.rs` |
+| Rust ↔ JS 桥接 | `examples/migpt/rust/node.rs` · `rust/lib.rs` |
+| 引擎与事件分发 | `examples/migpt/src/xiaoai.ts` |
+| **外部服务客户端** | `examples/migpt/src/agent.ts` |
+| **提醒推送服务** | `examples/migpt/src/push.ts` |
+| 设备控制与播报队列 | `examples/migpt/src/speaker.ts` |
+| 语音合成 | `examples/migpt/src/tts.ts` |
+| 用户配置与消息钩子 | `examples/migpt/src/config.ts` |
+| 环境变量读取 | `examples/migpt/src/env.ts` |
 | 配置模板 | `examples/migpt/.env.example` |
 | **接口协议** | `examples/migpt/PROTOCOL.md` |
 | **外部服务参考实现** | `examples/assistant/` |

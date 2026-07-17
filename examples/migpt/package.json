@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cargo-cp-artifact -ac open_xiaoai_server migpt/open-xiaoai.node -- cargo build --release --message-format=json-render-diagnostics",
-    "start": "tsx --env-file-if-exists=.env migpt/index.ts",
+    "build": "cargo-cp-artifact -ac open_xiaoai_server src/open-xiaoai.node -- cargo build --release --message-format=json-render-diagnostics",
+    "start": "tsx --env-file-if-exists=.env src/index.ts",
     "dev": "pnpm build && pnpm start"
   },
   "dependencies": {

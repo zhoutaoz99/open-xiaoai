@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx --env-file-if-exists=.env assistant/index.ts",
-    "dev": "tsx watch --env-file-if-exists=.env assistant/index.ts"
+    "start": "tsx --env-file-if-exists=.env src/index.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts"
   },
   "dependencies": {
     "openai": "^4.91.1"

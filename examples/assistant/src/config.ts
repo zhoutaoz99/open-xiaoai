@@ -1,5 +1,5 @@
-import type { AssistantConfig } from "./assistant/server.js";
-import { envList, envNumber, envString, getOpenAICreateParams } from "./assistant/env.js";
+import type { AssistantConfig } from "./server.js";
+import { envList, envNumber, envString, getOpenAICreateParams } from "./env.js";
 
 /**
  * 默认系统提示词

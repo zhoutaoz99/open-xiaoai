@@ -1,4 +1,4 @@
-import { kAssistantConfig } from "../config.js";
+import { kAssistantConfig } from "./config.js";
 import { AssistantServer } from "./server.js";
 
 async function main() {

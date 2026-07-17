@@ -7,15 +7,14 @@
 !packages/client-rust/Cargo.lock
 
 # MiGPT
+!examples/migpt/rust
 !examples/migpt/src
-!examples/migpt/migpt
-!examples/migpt/config.ts
 !examples/migpt/package.json
 !examples/migpt/pnpm-lock.yaml
 !examples/migpt/Cargo.toml
 !examples/migpt/Cargo.lock
 !examples/migpt/tsconfig.json
-examples/migpt/migpt/open-xiaoai.node
+examples/migpt/src/open-xiaoai.node
 
 # XiaoZhi
 !examples/xiaozhi/src

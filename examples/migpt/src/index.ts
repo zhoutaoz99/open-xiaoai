@@ -1,4 +1,4 @@
-import { kOpenXiaoAIConfig } from "config.js";
+import { kOpenXiaoAIConfig } from "./config.js";
 import { OpenXiaoAI } from "./xiaoai.js";
 
 async function main() {

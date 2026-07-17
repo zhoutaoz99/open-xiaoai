@@ -5,6 +5,7 @@ edition = "2021"
 exclude = ["index.node"]
 
 [lib]
+path = "rust/lib.rs"
 crate-type = ["cdylib"]
 
 

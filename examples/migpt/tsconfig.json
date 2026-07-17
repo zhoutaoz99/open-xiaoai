@@ -3,9 +3,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["migpt/*"]
+      "@/*": ["src/*"]
     }
   },
-  "include": ["migpt", "config.ts"],
+  "include": ["src"],
   "exclude": ["node_modules"]
 }
