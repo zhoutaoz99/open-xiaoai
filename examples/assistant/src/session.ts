@@ -10,19 +10,33 @@ interface Session {
    * 同一会话的请求队列，详见 lock()
    */
   queue: Promise<unknown>;
+  /**
+   * 闲置计时器，详见 arm()
+   */
+  timer?: NodeJS.Timeout;
 }
 
 export interface SessionConfig {
   /**
    * 每个会话最多记住多少轮对话
    *
-   * 注意：单位是「轮」，一轮 = 一问一答
+   * 注意：单位是「轮」，一轮 = 一问一答。
+   * 这是安全阀不是目标——真正决定对话有多长的是 ttl。
    */
   maxTurns: number;
   /**
    * 会话闲置多久后清空（毫秒）
+   *
+   * 注意：这就是"一轮对话结束"的判定——协议里没有唤醒边界，
+   * 说完话隔了这么久没下文，就算这轮聊完了
    */
   ttl: number;
+  /**
+   * 会话闲置到期、被清空时回调
+   *
+   * 注意：这是「用户不说话了」的时刻，长期记忆拿它当睡眠信号
+   */
+  onExpire?: (id: string) => void;
 }
 
 /**
@@ -66,9 +80,14 @@ export class SessionStore {
   }
 
   /**
-   * 清空会话
+   * 清空会话（用户主动说"重新开始"）
+   *
+   * 注意：不触发 onExpire。人还在跟前坐着，这不是"对话结束"，
+   * 是他想换个话题重来
    */
   reset(id: string) {
+    const session = this.sessions.get(id);
+    clearTimeout(session?.timer);
     this.sessions.delete(id);
   }
 
@@ -87,27 +106,39 @@ export class SessionStore {
   }
 
   private touch(id: string): Session {
-    this.gc();
     let session = this.sessions.get(id);
     if (!session) {
       session = { history: [], updatedAt: Date.now(), queue: Promise.resolve() };
       this.sessions.set(id, session);
     }
     session.updatedAt = Date.now();
+    this.arm(id, session);
     return session;
   }
 
   /**
-   * 清理闲置过期的会话
+   * 重置闲置计时：每说一句话就往后推
    *
-   * 注意：纯内存实现，不清理的话 Map 会一直涨
+   * 注意：这里用真定时器，而不是等下次请求来了再顺手清（懒惰过期）。
+   * 懒惰过期下"对话结束"这个时刻根本不存在——会话是在用户
+   * 下次开口时才被清掉的，那时人已经在说下一句了，
+   * 也就没法拿它当"用户安静下来了"的信号。
    */
-  private gc() {
-    const now = Date.now();
-    for (const [id, session] of this.sessions) {
-      if (now - session.updatedAt > this.config.ttl) {
-        this.sessions.delete(id);
-      }
+  private arm(id: string, session: Session) {
+    clearTimeout(session.timer);
+    session.timer = setTimeout(() => this.expire(id), this.config.ttl);
+    // 别因为等一个会话过期就让进程退不出去
+    session.timer.unref();
+  }
+
+  private expire(id: string) {
+    const session = this.sessions.get(id);
+    if (!session) {
+      return;
     }
+    clearTimeout(session.timer);
+    this.sessions.delete(id);
+    console.log(`💤 [${id}] 闲置 ${Math.round(this.config.ttl / 60000)} 分钟，本轮对话结束`);
+    this.config.onExpire?.(id);
   }
 }
