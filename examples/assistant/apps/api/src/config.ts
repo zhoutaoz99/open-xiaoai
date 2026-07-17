@@ -99,6 +99,18 @@ export const kAssistantConfig: AssistantConfig = {
      * 清空上下文后的回复话术（在 .env 文件里配置）
      */
     resetText: envString("ASSISTANT_RESET_TEXT") ?? "好的，我们重新开始吧。",
+    /**
+     * 命中这些关键词时退出连续对话（在 .env 文件里配置）
+     *
+     * 注意：前缀匹配，和 resetKeywords 一致。只有 migpt 开了 KEEP_AWAKE
+     * 时才有可见效果——响应里带上 keep_awake:false，告诉 migpt 播完这句
+     * 告别就别再开收音窗口，见 examples/migpt/PROTOCOL.md。
+     */
+    exitKeywords: envList("ASSISTANT_EXIT_KEYWORDS") ?? ["关闭", "退下", "没事了", "再见", "拜拜"],
+    /**
+     * 退出连续对话时的告别话术（在 .env 文件里配置）
+     */
+    exitText: envString("ASSISTANT_EXIT_TEXT") ?? "好的，不打扰了。",
   },
   session: {
     /**

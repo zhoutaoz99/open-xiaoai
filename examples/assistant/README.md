@@ -171,8 +171,12 @@ migpt 侧的 `OPENAI_*` 可以全部删掉（内置大模型已被绕过），`T
 | `ASSISTANT_MAX_TURNS` | 100 | 最多记住多少**轮**（一轮 = 一问一答） |
 | `ASSISTANT_SESSION_TTL_SECONDS` | 300 | 闲置多久算这轮对话聊完 |
 | `ASSISTANT_RESET_KEYWORDS` | 重新开始,忘掉刚才 | 说这些话可以清空**会话上下文** |
+| `ASSISTANT_EXIT_KEYWORDS` | 关闭,退下,没事了,再见,拜拜 | 说这些话可以**退出连续对话**（前缀匹配） |
+| `ASSISTANT_EXIT_TEXT` | 好的，不打扰了。 | 退出连续对话时的告别话术 |
 
 > ⚠️ **默认值变更**：`ASSISTANT_RESET_KEYWORDS` 原来是 `重新开始,清空记忆,忘掉刚才`。引入长期记忆后「清空记忆」有歧义（清哪个？），已从默认值里移除。清长期记忆请说「清空所有记忆」，见下面的 `MEMORY_WIPE_KEYWORDS`。
+
+> 💡 **退出连续对话**：`ASSISTANT_EXIT_KEYWORDS` 只在 migpt 开了 `KEEP_AWAKE`（连续对话）时才有可见效果——命中后助手回一句告别，并在响应里带上 `keep_awake:false`，告诉 migpt 播完就别再开收音窗口。它不清上下文、不落记忆，只是结束这一轮唤醒，跟「重新开始」是两码事。协议见 [`examples/migpt/PROTOCOL.md`](../migpt/PROTOCOL.md)。
 
 **人格**：
 

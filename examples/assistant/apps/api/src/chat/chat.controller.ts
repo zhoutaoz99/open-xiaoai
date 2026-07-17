@@ -52,6 +52,15 @@ export class ChatController {
       return replyText(res, !!body.stream, this.config.resetText);
     }
 
+    // 退出连续对话：说完这句告别就让 migpt 收手，别再开收音窗口。
+    // 不清上下文（跟「重新开始」两码事），也不落记忆——只是结束这一轮唤醒。
+    // 唤醒状态是 migpt 那边的事，这里只负责在响应里带上 keep_awake:false，
+    // migpt 没开 KEEP_AWAKE 时这个信号会被忽略，行为等同于普通一句回复。
+    if (this.config.exitKeywords.some((k) => text.startsWith(k))) {
+      console.log(`👋 [${sessionId}] 退出连续对话`);
+      return replyText(res, !!body.stream, this.config.exitText, { keepAwake: false });
+    }
+
     // migpt 抢话时会断开连接，这里据此中断大模型请求
     const controller = new AbortController();
     res.on("close", () => {
@@ -142,10 +151,20 @@ function sse(res: Response, event: string, data: unknown) {
 
 /**
  * 直接回一句固定话术，兼容流式和非流式
+ *
+ * keepAwake 为 false 时，在响应里带上 keep_awake:false，告诉 migpt 播完这句
+ * 别再进连续对话（用户说了「关闭」之类的话）。缺省不带该字段，migpt 按自己的
+ * KEEP_AWAKE 配置决定，见 examples/migpt/PROTOCOL.md。
  */
-function replyText(res: Response, stream: boolean, text: string) {
+function replyText(
+  res: Response,
+  stream: boolean,
+  text: string,
+  options?: { keepAwake?: boolean }
+) {
+  const done = options?.keepAwake === false ? { keep_awake: false } : {};
   if (!stream) {
-    res.json({ text });
+    res.json({ text, ...done });
     return;
   }
   res.writeHead(200, {
@@ -154,6 +173,6 @@ function replyText(res: Response, stream: boolean, text: string) {
     Connection: "keep-alive",
   });
   sse(res, "delta", { text });
-  sse(res, "done", {});
+  sse(res, "done", done);
   res.end();
 }

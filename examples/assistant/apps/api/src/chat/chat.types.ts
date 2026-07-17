@@ -17,6 +17,17 @@ export interface ChatConfig {
    * 清空上下文后的回复话术
    */
   resetText: string;
+  /**
+   * 命中这些关键词时退出连续对话（唤醒状态）
+   *
+   * 注意：只在 migpt 开了 KEEP_AWAKE 时才有可见效果——通过响应里的
+   * keep_awake:false 告诉 migpt 本轮播完别再开收音窗口，见 PROTOCOL.md。
+   */
+  exitKeywords: string[];
+  /**
+   * 退出连续对话时的告别话术
+   */
+  exitText: string;
 }
 
 export interface SessionConfig {

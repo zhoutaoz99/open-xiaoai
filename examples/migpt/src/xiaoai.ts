@@ -3,7 +3,7 @@ import type { IReply } from "@mi-gpt/engine/base";
 import { deepMerge } from "@mi-gpt/utils";
 import { jsonDecode } from "@mi-gpt/utils/parse";
 import type { Prettify } from "@mi-gpt/utils/typing";
-import { Agent, type AgentConfig } from "./agent.js";
+import { Agent, type AgentConfig, type AgentReply } from "./agent.js";
 import { Push, type PushConfig } from "./push.js";
 import { RustServer } from "./open-xiaoai.js";
 import { OpenXiaoAISpeaker } from "./speaker.js";
@@ -137,6 +137,11 @@ class OpenXiaoAIEngine extends MiGPTEngine {
     const { id, reply } = this.lastReply ?? {};
     if (id !== msg.id || !reply || reply.handled || reply.default) {
       // 钩子把消息交回小爱原生处理（或静默放弃）了，这会儿在说话的不是我们，不能抢
+      return false;
+    }
+    if ((reply as AgentReply).keepAwake === false) {
+      // 外部服务显式要求退出连续对话（用户说了「关闭」之类的话），
+      // 哪怕这句告别有内容，也不再开收音窗口。见 PROTOCOL.md 的 keep_awake。
       return false;
     }
     // 有内容引擎才会播报，没内容就没什么可追问的

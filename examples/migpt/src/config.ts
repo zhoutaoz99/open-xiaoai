@@ -143,6 +143,9 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
       return { handled: true };
     }
 
-    return { text: reply.text, url: reply.url, stream: reply.stream };
+    // 直接把 reply 交给引擎，而不是另建对象：流式下 keepAwake 要等播报结束
+    // 才由 feed() 回填，必须是同一个引用，shouldKeepAwake 才读得到（见 agent.ts）。
+    // reply 的字段是 IReply 的超集，多出来的 keepAwake 引擎会忽略。
+    return reply;
   },
 };

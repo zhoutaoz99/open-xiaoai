@@ -64,6 +64,16 @@ export interface AgentReply {
    * 被用户抢话打断，应该静默放弃
    */
   aborted?: boolean;
+  /**
+   * 外部服务对连续对话（唤醒状态）的显式意愿，见 PROTOCOL.md 的 keep_awake
+   *
+   * 注意：`false` 表示本轮播完别再进连续对话（用户说了「关闭」之类的话）；
+   * 缺省（undefined）表示外部服务没意见，由 keepAwake 配置自己决定。
+   *
+   * 注意：流式响应里 keep_awake 挂在 done 事件上，要等播报结束才收得到。
+   * 所以这个字段是在后台 feed() 里回填的，判定连续对话时读的必须是同一个对象。
+   */
+  keepAwake?: boolean;
 }
 
 interface SSEEvent {
@@ -185,7 +195,12 @@ class AgentManager {
 
       if (!config.stream) {
         const data = await res.json();
-        return { text: data?.text, url: data?.url, fallback: data?.fallback };
+        return {
+          text: data?.text,
+          url: data?.url,
+          fallback: data?.fallback,
+          keepAwake: data?.keep_awake,
+        };
       }
 
       if (!res.body) {
@@ -248,9 +263,12 @@ class AgentManager {
     }
 
     const stream = new StreamResponse();
+    // keep_awake 在 done 事件上，等播报结束才收得到，所以先返回这个对象，
+    // 再让后台的 feed() 往它身上回填 keepAwake——判定连续对话时读的是同一个引用
+    const reply: AgentReply = { stream };
     this.write(stream, event);
-    this.feed(events, stream, controller);
-    return { stream };
+    this.feed(events, stream, controller, reply);
+    return reply;
   }
 
   /**
@@ -259,7 +277,8 @@ class AgentManager {
   private async feed(
     events: AsyncGenerator<SSEEvent>,
     stream: StreamResponse,
-    controller: AbortController
+    controller: AbortController,
+    reply: AgentReply
   ) {
     const timer = setTimeout(() => controller.abort(kTimeoutReason), kTotalTimeout);
     try {
@@ -276,6 +295,7 @@ class AgentManager {
           console.error("❌ 外部服务返回错误", data?.message);
           break;
         } else if (event.event === "done") {
+          reply.keepAwake = jsonDecode<{ keep_awake?: boolean }>(event.data)?.keep_awake;
           break;
         }
       }
