@@ -4,6 +4,17 @@
 
 方案完全在 assistant 内部实现：对外接口 `/chat` 的请求与响应格式**一个字都不变**（工具调用在服务内部闭环完成），任何调用方都无需改动、也无从感知。本文的所有设计依据都来自 assistant 自身的代码与定位，不依赖任何特定客户端。
 
+> **v2 存储变更说明**
+>
+> 本文成文时是单进程 + 四份文件（1.4 原则里写的是「不引数据库」）。v2 加了管理前台之后，这一条被改掉了：
+>
+> - **记忆库、对话流水、提炼记录进 Postgres**。直接原因是前台要按会话翻页看历史、按轮次 join 提炼记录——这两件事文件存储做不动（翻到第 50 页要把 14 天的流水整个读一遍）。
+> - **灵魂和画像仍然是 Markdown 文件**。「给人改的用 Markdown，给机器用的用 JSON」这条原则没变，只是"给机器用的"那半边从 JSON 文件换成了表。
+> - **检索路径一个字没变**：记忆库启动时全量载入内存，读全走镜像、写同时落库。「本地打分 <1ms、零网络」是这套设计的立身之本，不能为了几百微秒的字符串匹配去跑 SQL。
+> - **新增「提炼记录」**（`extractions` 表）：每次抽取/巩固干了什么，落一条审计流水给前台看。原来这些只在日志里一闪而过。
+>
+> 下文凡提到 `memory.json`、`transcript.jsonl` 的地方，读作对应的表；四份文件读作「两份文件 + 三张表」。其余设计（分区、工具化召回、防污染、睡眠巩固、遗忘曲线）全部原样成立。实际结构以 [README](../README.md) 为准。
+
 ## 一、背景与目标
 
 ### 1.1 现状
@@ -30,7 +41,9 @@ assistant 目前的"记忆"只有 `SessionStore` 里最近 10 轮问答：纯内
 
 - **对外接口零侵入**：`/chat` 协议不变；工具调用循环在服务内部完成，调用方只看到正常的文本流。
 - **零新增重依赖**：不引数据库、不引向量库。Markdown + JSON 文件 + 现有 openai SDK。
+  （**v2 已放宽**：为了前台的翻页与 join，记忆库/流水/提炼记录进了 Postgres；向量库依然不引，见 4.6。）
 - **给人改的用 Markdown，给机器用的用 JSON**：灵魂和画像是给人看、给人改的 → Markdown；记忆库要 id、字段、程序化读写 → JSON。
+  （**v2**：后半句的落点从 JSON 文件变成了 Postgres 表，原则不变——前半句一个字没动。）
 - **写时智能、读时廉价**：抽取、打标、巩固、画像全在异步侧；检索的执行器是本地打分，工具调用只是触发方式。
 
 ## 二、总体设计：四份文件 + 工具化召回
@@ -45,6 +58,17 @@ assistant 目前的"记忆"只有 `SessionStore` 里最近 10 轮问答：纯内
 | `profile.md` | Markdown | 定时巩固任务（用户也可改） | 每次请求注入 system prompt | **画像**：对用户/家庭的理解 |
 | `memory.json` | JSON | 抽取器/巩固器 | `search_memory` 工具检索 | **记忆库**：结构化明细，可无限增长 |
 | `transcript.jsonl` | JSONL | 每轮问答追加 | 定时巩固（模式挖掘原料） | **流水**：近期原始对话 |
+
+**v2 实际落点**（角色和读写者完全不变，只换了存储介质）：
+
+| 东西 | v1 | v2 | 为什么搬 |
+| --- | --- | --- | --- |
+| 灵魂 | `data/soul.md` | **没动** | 给人写、给人改的 |
+| 画像 | `data/profile.md` | **没动** | 同上，还要能 diff、能备份 |
+| 记忆库 | `data/memory.json` | `memories` 表 | 前台要按类型/命中筛排；仍全量载入内存供检索 |
+| 流水 | `data/transcript.jsonl` | `turns` 表 | 前台要按会话翻页 |
+| （新增）提炼记录 | — | `extractions` 表 | 前台要按轮次看"这轮学到了什么"，得能 join |
+| （新增）快照 | `*.bak` 文件 | `memory_snapshots` 表 | 见 7.3 |
 
 灵魂与画像刻意分离：**人格是设定的，理解是习得的**。灵魂由用户执笔、系统只读不写（助手不应该悄悄改变自己的性格）；画像由系统习得、用户可纠正。"清空所有记忆"清画像、库、流水，**不碰灵魂**。
 
@@ -353,6 +377,8 @@ score = 3.0×命中 subject 数 + 1.0×命中 keyword 数
 
 一句话触发的不可逆操作是大忌（还有语音误识别风险）。wipe 前把 `memory.json`、`profile.md`、`transcript.jsonl` 备份为 `*-<时间戳>.bak` 留同目录，恢复方式写进 README。巩固改写前同样备份。
 
+> **v2**：记忆库和流水进库之后，`.bak` 文件对它们不再适用——改成往 `memory_snapshots` 表插一行（整个库的 jsonb 快照 + 当时的画像全文），`GET /memories/snapshots` 可查。画像是文件，照旧备份成 `data/profile.md-<时间戳>.bak`。语义一个字没变：**清空和巩固前都必须留一条退路**。
+
 ### 7.4 删除的连带语义
 
 delete 的记忆可能已炼进画像。删除操作打"画像待刷新"标记，下次定时巩固基于删除后的库重写画像——"忘掉"最终在画像里生效（有延迟；急用"清空所有记忆"）。
@@ -436,6 +462,22 @@ examples/assistant/src/
 ```
 
 `session.ts` 原样保留；`/chat` 与 `/health` 对外行为不变，调用方零改动。`MEMORY_ENABLED=false` 时 manager 全部 no-op、不挂工具、定时器不启动；灵魂独立生效。
+
+> **v2 实际结构**：改成了 [`Project-Skeleton.md`](../Project-Skeleton.md) 的 monorepo（`apps/api` NestJS + `apps/web` Next.js），后端按业务域纵切。上面这些模块基本一一对应地搬了过去：
+>
+> | 本文的模块 | v2 落点 |
+> | --- | --- |
+> | `soul.ts` | `apps/api/src/soul/`（加了 controller，前台能读写这两份文件） |
+> | `memory/store.ts` | 拆成 `memory/memory.store.ts`（纯内存镜像，零 IO）+ `memory/memory.repository.ts`（Postgres） |
+> | `memory/transcript.ts` | 独立成 `transcript/` 域（有自己的 controller 供前台翻页） |
+> | `memory/search.ts` `marker.ts` | 原样搬到 `memory/`，一个字没改 |
+> | `memory/extractor.ts` `consolidator.ts` | `memory/`，只多返回了失败原因（要进提炼记录） |
+> | `memory/manager.ts` | `memory/memory.service.ts` |
+> | `llm.ts` | `llm/`（两份实例：主模型 + 记忆模型） |
+> | `server.ts` | 拆成 `chat/chat.controller.ts`（协议）+ `chat/chat.service.ts`（工具循环） |
+> | `session.ts` | `chat/session.service.ts`，**仍然是纯内存** |
+>
+> 依赖方向：`chat → memory → {transcript, soul}`，反过来不成立（不然就成环了）。`MEMORY_ENABLED=false` 的语义不变。
 
 ## 十二、边界与已知取舍
 

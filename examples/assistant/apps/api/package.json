@@ -1,0 +1,29 @@
+{
+  "name": "@assistant/api",
+  "version": "2.0.0",
+  "description": "assistant 后端：对话、长期记忆、灵魂与画像",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "openai": "^4.91.1",
+    "pg": "^8.13.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.7",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.11",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.9.3"
+  }
+}

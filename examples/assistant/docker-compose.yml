@@ -1,0 +1,32 @@
+# 起一个 Postgres 给 assistant 用
+#
+# 注意：只有 Postgres。骨架模板里还有 Redis，但这里用不上——
+# 会话窗口是纯内存的（见 chat/session.service.ts 的说明），单实例设计也没有
+# 跨进程缓存的需求，加一个谁都不读的 Redis 只是多一个要维护的东西。
+services:
+  postgres:
+    image: postgres:16
+    container_name: assistant-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: assistant
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # 宿主机用 5433，容器里还是 5432。
+      #
+      # 注意：不用 5432 是因为开发机上很可能已经有一个自己装的 Postgres 占着它
+      # （Postgres.app、Homebrew 都默认这个端口）。那种情况下容器虽然起得来，
+      # 连接却会悄悄连到本地那个库上——报错还算好的，更糟的是连上了、
+      # 然后往人家库里建表。换个端口，两边互不打扰。
+      - "5433:5432"
+    volumes:
+      - assistant-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  assistant-pg-data:
