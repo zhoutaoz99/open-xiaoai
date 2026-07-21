@@ -18,6 +18,11 @@ import { randomUUID } from "node:crypto";
  */
 type EngineMessage = Parameters<MiGPTEngine["onMessage"]>[0];
 
+export interface Speaker {
+  id: string;
+  nickName: string;
+}
+
 export type OpenXiaoAIConfig = Prettify<
   EngineConfig<OpenXiaoAIEngine> & {
     /**
@@ -64,6 +69,19 @@ class OpenXiaoAIEngine extends MiGPTEngine {
    * 回复播报完毕后是否进入连续对话
    */
   private keepAwake = false;
+
+  /**
+   * 当前说话人（声纹识别结果）
+   *
+   * 注意：声纹识别结果在 ASR 定稿之前就到了（同一个 dialog_id），
+   * 先按 dialog_id 暂存，等 RecognizeResult is_final 时取出来挂到消息上。
+   */
+  currentSpeaker?: Speaker;
+
+  /**
+   * 按 dialog_id 暂存的声纹识别结果
+   */
+  private voiceprints = new Map<string, Speaker>();
 
   /**
    * onMessage 钩子对最近一条消息的处理结果
@@ -166,11 +184,26 @@ class OpenXiaoAIEngine extends MiGPTEngine {
       const line = jsonDecode(e.data.NewLine);
       if (
         line?.header?.namespace === "SpeechRecognizer" &&
+        line?.header?.name === "VoiceprintRecognizeResult" &&
+        line?.payload?.result
+      ) {
+        const { id, nick_name } = line.payload.result;
+        if (id && nick_name) {
+          const speaker = { id, nickName: nick_name };
+          this.voiceprints.set(line.header.dialog_id, speaker);
+          this.currentSpeaker = speaker;
+          console.log(`🎙️ 声纹识别：${nick_name}`);
+        }
+      } else if (
+        line?.header?.namespace === "SpeechRecognizer" &&
         line?.header?.name === "RecognizeResult" &&
         line?.payload?.is_final &&
         line?.payload?.results?.[0]?.text
       ) {
         const text = line.payload.results[0].text;
+        const dialogId = line.header.dialog_id;
+        this.currentSpeaker = this.voiceprints.get(dialogId);
+        this.voiceprints.delete(dialogId);
         this.onMessage({
           text,
           id: randomUUID(),

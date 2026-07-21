@@ -77,10 +77,12 @@ export function normalizeOp(raw: unknown): MemoryOp | undefined {
 
 /**
  * 记忆条目里没有 subjects 的话检索不到，补一个兜底
+ *
+ * 注意：声纹识别到说话人时用他的名字，否则退回"用户"
  */
-export function ensureSubjects(op: MemoryOp): MemoryOp {
+export function ensureSubjects(op: MemoryOp, speaker?: string): MemoryOp {
   if (op.op === "add" && !op.subjects.length && !op.keywords.length) {
-    return { ...op, subjects: ["用户"] };
+    return { ...op, subjects: [speaker ?? "用户"] };
   }
   return op;
 }

@@ -1,6 +1,7 @@
 import { deepMerge } from "@mi-gpt/utils";
 import { jsonDecode } from "@mi-gpt/utils/parse";
 import { StreamResponse } from "@mi-gpt/stream";
+import type { Speaker } from "./xiaoai.js";
 
 export interface AgentConfig {
   /**
@@ -164,6 +165,7 @@ class AgentManager {
     id: string;
     text: string;
     timestamp: number;
+    speaker?: Speaker;
   }): Promise<AgentReply> {
     const { config } = this;
     if (!config) {
@@ -184,6 +186,9 @@ class AgentManager {
           text: msg.text,
           stream: config.stream,
           timestamp: msg.timestamp,
+          speaker: msg.speaker
+            ? { id: msg.speaker.id, nick_name: msg.speaker.nickName }
+            : undefined,
         }),
         signal: controller.signal,
       });

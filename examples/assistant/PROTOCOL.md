@@ -65,7 +65,11 @@ Content-Type: application/json
   "session_id": "default",        // 必填。会话标识，外部服务据此维护上下文
   "text": "你好你是谁",            // 必填。ASR 识别结果
   "stream": true,                 // 可选。默认 false
-  "timestamp": 1721030400000      // 可选。消息产生时间（毫秒）
+  "timestamp": 1721030400000,     // 可选。消息产生时间（毫秒）
+  "speaker": {                    // 可选。声纹识别到的说话人
+    "id": "a7c2b1e5-...",         //   声纹 ID
+    "nick_name": "周涛"            //   说话人昵称
+  }
 }
 ```
 
@@ -74,6 +78,12 @@ Content-Type: application/json
 1. 它是 ASR 的**最终结果**（`is_final === true`），不含唤醒词。
 2. **不保证有标点**。ASR 结果常常是「你好你是谁」这样没有标点的。
 3. 可能包含识别错误，外部服务需要有一定容错。
+
+关于 `speaker` 字段：
+
+1. 由小爱云端声纹识别后通过 `instruction.log` 的 `VoiceprintRecognizeResult` 下发，语音前端解析后随请求一起发过来。
+2. **未识别到时不带该字段**（比如未录入声纹的人说话），外部服务应按「用户」处理。
+3. 外部服务可据此区分说话人，实现按人记忆、按人称呼等个性化能力。
 
 ## 五、响应
 

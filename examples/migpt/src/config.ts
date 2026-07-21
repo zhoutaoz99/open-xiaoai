@@ -129,7 +129,10 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
     // 必须先打断小爱，否则它会用自己的云端回答跟我们抢着说话
     await engine.speaker.abortXiaoAI();
 
-    const reply = await Agent.chat(msg);
+    const reply = await Agent.chat({
+      ...msg,
+      speaker: engine.currentSpeaker,
+    });
 
     if (reply.aborted) {
       // 用户抢话了，静默放弃这条回复

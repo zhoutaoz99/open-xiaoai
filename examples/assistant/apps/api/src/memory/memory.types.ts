@@ -291,6 +291,13 @@ export interface Round {
   user: string;
   assistant: string;
   /**
+   * 声纹识别到的说话人昵称
+   *
+   * 注意：由小爱云端声纹识别后下发，未识别到时为 undefined，
+   * 此时记忆中的"我"仍记成"用户"
+   */
+  speaker?: string;
+  /**
    * 落库后的轮次 id，用来把提炼记录挂回这一轮
    *
    * 注意：可能没有——MEMORY_TRANSCRIPT_DAYS=0 时不落流水，

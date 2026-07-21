@@ -208,7 +208,7 @@ export class ChatService implements OnModuleInit {
    *
    * @param conversationId 这一轮属于哪段对话，由调用方在**用户开口时**取好传进来
    */
-  remember(sessionId: string, conversationId: string, user: string, assistant: string) {
+  remember(sessionId: string, conversationId: string, user: string, assistant: string, speaker?: string) {
     // 被抢话时也把已经生成的部分记进历史，但一个字都没生成就不写了：
     // 上下文里留一条没有回复的提问，下一轮就变成连续两条 user
     if (assistant) {
@@ -216,7 +216,7 @@ export class ChatService implements OnModuleInit {
     }
     // 长期记忆不看有没有回复：用户说的话在 user 消息里，
     // 「记住我对海鲜过敏」刚说完就被抢话，这事照样得记住
-    this.memory.onTurn({ sessionId, conversationId, user, assistant });
+    this.memory.onTurn({ sessionId, conversationId, user, assistant, speaker });
   }
 
   /**
@@ -225,11 +225,11 @@ export class ChatService implements OnModuleInit {
    * 注意：这里不写历史，成功拿到回复后才成对写入，
    * 避免失败的请求把上下文污染掉
    */
-  messages(sessionId: string, text: string): ChatCompletionMessageParam[] {
+  messages(sessionId: string, text: string, speaker?: string): ChatCompletionMessageParam[] {
     return [
       { role: "system", content: this.soul.systemPrompt() },
       ...this.sessions.history(sessionId),
-      { role: "user", content: this.userMessage(text) },
+      { role: "user", content: this.userMessage(text, speaker) },
     ];
   }
 
@@ -240,7 +240,7 @@ export class ChatService implements OnModuleInit {
    * 模型会去查，但"明天有钢琴课"应该在聊到出游时不查自知。
    * 条目少而具体，不构成注意力污染。
    */
-  private userMessage(text: string): string {
+  private userMessage(text: string, speaker?: string): string {
     // 当前时刻必须给到模型：system 里只有日期（"今天是…"），算不出"两分钟后"
     // "半小时后"这类相对提醒——没有时间基准，模型只能瞎猜。放在动态区而不是
     // system prompt：system 要天级稳定、对前缀缓存友好，精确到分的时间每次都变，
@@ -256,6 +256,8 @@ export class ChatService implements OnModuleInit {
     ];
     const schedule = lines.length ? `\n【接下来几天的安排】\n${lines.join("\n")}` : "";
 
-    return `${now}${schedule}\n\n【用户说】${text}`;
+    const who = speaker ? `\n【说话人】${speaker}（声纹识别）` : "";
+
+    return `${now}${who}${schedule}\n\n【用户说】${text}`;
   }
 }

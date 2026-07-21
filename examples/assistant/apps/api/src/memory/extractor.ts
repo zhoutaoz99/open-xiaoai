@@ -15,6 +15,13 @@ export interface ExtractInput {
    * 全部 subjects 词表，给模型对齐用词
    */
   subjects: string[];
+  /**
+   * 声纹识别到的说话人昵称
+   *
+   * 注意：有值时"我"指的是这个人而不是泛泛的"用户"，
+   * 抽取器据此把记忆挂到正确的人头上
+   */
+  speaker?: string;
 }
 
 /**
@@ -51,7 +58,7 @@ export async function extract(llm: LLM, input: ExtractInput): Promise<ExtractOut
       console.error(`❌ 记忆抽取调用失败（第 ${i + 1} 次）`, e);
       continue;
     }
-    const ops = parseOps(raw);
+    const ops = parseOps(raw, input.speaker);
     if (ops) {
       return { ops };
     }
@@ -80,6 +87,10 @@ function buildPrompt(input: ExtractInput): string {
     .map((e, i) => `第 ${i + 1} 轮\n用户：${e.user}\n助手：${e.assistant}`)
     .join("\n\n");
 
+  const speakerRule = input.speaker
+    ? `\n   **本轮声纹识别到说话人是「${input.speaker}」**，所以对话里的"我"指的是${input.speaker}，记成"用户"：\n   用户说"我不吃辣" → {"op":"add","type":"preference","content":"${input.speaker}不吃辣","subjects":["${input.speaker}"],"keywords":["辣","口味","忌口"],"importance":4,"evidence":"我不吃辣"}\n   用户说"朵朵不吃辣" → subjects 才是 ["朵朵"]`
+    : `\n   用户说"我不吃辣" → {"op":"add","type":"preference","content":"用户不吃辣","subjects":["用户"],"keywords":["辣","口味","忌口"],"importance":4,"evidence":"我不吃辣"}\n   用户说"朵朵不吃辣" → subjects 才是 ["朵朵"]`;
+
   return `今天是 ${today()}。
 
 【已有的相关记忆】
@@ -99,8 +110,7 @@ ${rounds}
 
 【规则】
 1. **分清这条信息是关于谁的**。对话里的"我"指的是正在说话的那个家人，除非他自报了身份（"我是爸爸"），否则一律记成"用户"：
-   用户说"我不吃辣" → {"op":"add","type":"preference","content":"用户不吃辣","subjects":["用户"],"keywords":["辣","口味","忌口"],"importance":4,"evidence":"我不吃辣"}
-   用户说"朵朵不吃辣" → subjects 才是 ["朵朵"]
+${speakerRule}
    **绝不能因为词表里已经有某个名字，就把用户说的事安到那个人头上。**
 2. 只记稳定的、日后有用的个人信息：家庭成员和称呼、身份、口味偏好、健康状况、重要经历、日程安排。
 3. 闲聊、百科问答、天气查询、一次性指令（"放首歌""几点了"）一律不记。**输出 [] 是最常见的正确答案**，不要为了有产出而硬记。
@@ -124,7 +134,7 @@ ${rounds}
  * 注意：模型经常会包一层 ```json 代码块或者前后加几句话，
  * 所以先把最外层的数组抠出来再解析。
  */
-function parseOps(raw: string): MemoryOp[] | undefined {
+function parseOps(raw: string, speaker?: string): MemoryOp[] | undefined {
   const start = raw.indexOf("[");
   const end = raw.lastIndexOf("]");
   if (start < 0 || end <= start) {
@@ -146,7 +156,7 @@ function parseOps(raw: string): MemoryOp[] | undefined {
     if (!op) {
       return undefined;
     }
-    ops.push(ensureSubjects(op));
+    ops.push(ensureSubjects(op, speaker));
   }
   return ops;
 }

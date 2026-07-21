@@ -64,6 +64,16 @@ export interface ChatRequest {
   text?: string;
   stream?: boolean;
   timestamp?: number;
+  /**
+   * 声纹识别到的说话人，可选
+   *
+   * 注意：由小爱云端声纹识别后通过 instruction.log 下发，
+   * 语音前端解析后随请求一起发过来。未识别到时不带该字段。
+   */
+  speaker?: {
+    id: string;
+    nick_name: string;
+  };
 }
 
 export const CHAT_CONFIG = Symbol("CHAT_CONFIG");

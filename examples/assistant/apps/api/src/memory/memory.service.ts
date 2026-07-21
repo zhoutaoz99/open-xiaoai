@@ -53,14 +53,15 @@ const kSearchTool: ChatCompletionTool = {
     name: "search_memory",
     description:
       "检索你的长期记忆库（关于这个家庭的身份、事实、偏好、事件）。当需要用户或家人的具体信息而当前上下文里没有时，先检索再回答。" +
-      "用户问他自己的事（我是谁、我叫什么、我的车牌号是多少）也要用它检索。",
+      "用户问他自己的事（我是谁、我叫什么、我的车牌号是多少）也要用它检索。" +
+      "声纹识别到说话人时，用他的名字检索（如「周涛 名字」），否则用「用户」。",
     parameters: {
       type: "object",
       properties: {
         query: {
           type: "string",
           description:
-            "空格分隔的检索词：人名、事物、主题。问用户自己的事就用「用户」当人称，比如：用户 名字；问家人就用名字，比如：朵朵 过敏",
+            "空格分隔的检索词：人名、事物、主题。问用户自己的事就用「用户」当人称，比如：用户 名字；问家人就用名字，比如：朵朵 过敏。声纹识别到说话人时用他的名字，比如：周涛 名字",
         },
       },
       required: ["query"],
@@ -611,11 +612,13 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
     const hint = rounds.map((e) => `${e.user} ${e.assistant}`).join(" ");
     const turnIds = rounds.map((e) => e.turnId).filter((e): e is string => !!e);
     const sessionId = rounds[0]?.sessionId ?? null;
+    const speaker = rounds.find((e) => e.speaker)?.speaker;
 
     const { ops, error } = await extract(this.llm, {
       rounds,
       related: this.related(hint),
       subjects: this.store.subjects(),
+      speaker,
     });
 
     if (!ops) {

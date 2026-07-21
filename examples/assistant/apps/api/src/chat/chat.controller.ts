@@ -37,7 +37,9 @@ export class ChatController {
       throw new BadRequestException("session_id and text are required");
     }
 
-    console.log(`🔥 [${sessionId}] ${text}`);
+    const speaker = body.speaker?.nick_name;
+
+    console.log(`🔥 [${sessionId}]${speaker ? ` (${speaker})` : ""} ${text}`);
 
     // 清空长期记忆：不可逆，所以要精确匹配整句，且执行前自动备份。
     // 放在会话重置前面：两者语义不同，长期记忆的清空优先级更高
@@ -71,8 +73,8 @@ export class ChatController {
 
     await this.sessions.lock(sessionId, () =>
       body.stream
-        ? this.chatStream(res, sessionId, text, controller.signal)
-        : this.chatOnce(res, sessionId, text, controller.signal)
+        ? this.chatStream(res, sessionId, text, speaker, controller.signal)
+        : this.chatOnce(res, sessionId, text, speaker, controller.signal)
     );
   }
 
@@ -80,6 +82,7 @@ export class ChatController {
     res: Response,
     sessionId: string,
     text: string,
+    speaker: string | undefined,
     signal: AbortSignal
   ) {
     // 在用户开口这一刻就把段定下来，别等答完再问「现在是哪一段」——
@@ -89,7 +92,7 @@ export class ChatController {
 
     let answer = "";
     try {
-      answer = await this.chat.complete(this.chat.messages(sessionId, text), text, signal);
+      answer = await this.chat.complete(this.chat.messages(sessionId, text, speaker), text, signal);
       console.log(`🤖 [${sessionId}] ${answer}`);
       res.json({ text: answer });
     } catch (e) {
@@ -99,13 +102,14 @@ export class ChatController {
         res.json({ text: this.config.errorText });
       }
     }
-    this.chat.remember(sessionId, conversationId, text, answer);
+    this.chat.remember(sessionId, conversationId, text, answer, speaker);
   }
 
   private async chatStream(
     res: Response,
     sessionId: string,
     text: string,
+    speaker: string | undefined,
     signal: AbortSignal
   ) {
     res.writeHead(200, {
@@ -121,7 +125,7 @@ export class ChatController {
     // 返回值就没了，已经播出去的那半句也跟着丢了
     let answer = "";
     try {
-      await this.chat.complete(this.chat.messages(sessionId, text), text, signal, (delta) => {
+      await this.chat.complete(this.chat.messages(sessionId, text, speaker), text, signal, (delta) => {
         answer += delta;
         sse(res, "delta", { text: delta });
       });
@@ -141,7 +145,7 @@ export class ChatController {
       }
     }
 
-    this.chat.remember(sessionId, conversationId, text, answer);
+    this.chat.remember(sessionId, conversationId, text, answer, speaker);
   }
 }
 
