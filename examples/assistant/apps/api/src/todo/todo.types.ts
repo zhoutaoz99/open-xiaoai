@@ -83,7 +83,7 @@ export interface TodoConfig {
    * migpt 的推送地址，形如 http://127.0.0.1:4400
    *
    * 注意：没配则提醒只打日志（功能降级不报错），见 notifier.ts。
-   * 这条通道早在 examples/migpt/PROTOCOL.md 里定义好了，本模块只是第一次用它。
+   * 这条通道早在 PROTOCOL.md 里定义好了，本模块只是第一次用它。
    */
   pushUrl?: string;
   /**

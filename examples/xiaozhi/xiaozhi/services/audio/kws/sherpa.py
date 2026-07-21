@@ -19,7 +19,15 @@ class _SherpaOnnx:
             decoder=get_model_file_path("decoder.onnx"),
             joiner=get_model_file_path("joiner.onnx"),
         )
+        self._create_stream()
+
+    def _create_stream(self):
+        if hasattr(self, "stream"):
+            self.keyword_spotter.reset_stream(self.stream)
         self.stream = self.keyword_spotter.create_stream()
+
+    def reset(self):
+        self._create_stream()
 
     def kws(self, frames):
         samples = np.frombuffer(frames, dtype=np.int16)

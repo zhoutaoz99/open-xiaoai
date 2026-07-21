@@ -2,7 +2,7 @@
 
 本文是 [`examples/assistant`](../README.md) **待办清单**与**主动提醒**功能的设计方案（只讲设计，不含实现）。它建立在 [长期记忆与人格方案](memory.md) 之上：那份文档在 1.3 非目标里把「定时提醒的调度执行」推到了阶段三，因为它突破了「收文本 → 出文本」的边界；本文就是来兑现那一段的。
 
-方案完全在 assistant 内部实现：对外的 `/chat` 协议**一个字都不变**；提醒的投递走 [`examples/migpt/PROTOCOL.md`](../migpt/PROTOCOL.md) 里**早已定义好的推送通道**（外部服务 → migpt 的 `POST /push`），assistant 只是第一次用它。
+方案完全在 assistant 内部实现：对外的 `/chat` 协议**一个字都不变**；提醒的投递走 [`PROTOCOL.md`](../PROTOCOL.md) 里**早已定义好的推送通道**（外部服务 → 语音前端的 `POST /push`），assistant 只是第一次用它。
 
 ## 一、背景与目标
 
@@ -266,7 +266,7 @@ apps/api/src/todo/
 | 前台 4 处 | 见八 |
 | `.env.example` / `README.md` | 新增配置说明与待办页介绍 |
 
-`examples/migpt/PROTOCOL.md` **不用改**——推送通道早就定义好了，本方案只是第一次用它。migpt 侧只需把 `AGENT_PUSH_PORT` 配上（协议附录已有）。
+`PROTOCOL.md` **不用改**——推送通道早就定义好了，本方案只是第一次用它。语音前端侧只需把 `AGENT_PUSH_PORT` 配上（协议附录已有）。
 
 ## 十二、并发、可靠性与一致性
 

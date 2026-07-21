@@ -18,7 +18,7 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
     /**
      * 你的外部对话服务的接口地址（在 .env 文件里配置）
      *
-     * 接口协议详见 PROTOCOL.md
+     * 接口协议详见 examples/assistant/PROTOCOL.md
      *
      * 注意：不包含 /chat 部分
      * - ✅ http://127.0.0.1:8000

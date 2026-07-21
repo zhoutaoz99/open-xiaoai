@@ -20,8 +20,8 @@ export interface ChatConfig {
   /**
    * 命中这些关键词时退出连续对话（唤醒状态）
    *
-   * 注意：只在 migpt 开了 KEEP_AWAKE 时才有可见效果——通过响应里的
-   * keep_awake:false 告诉 migpt 本轮播完别再开收音窗口，见 PROTOCOL.md。
+   * 注意：只在语音前端开了连续对话时才有可见效果——通过响应里的
+   * keep_awake:false 告诉前端本轮播完别再开收音窗口，见 PROTOCOL.md。
    */
   exitKeywords: string[];
   /**
@@ -55,7 +55,7 @@ export interface Message {
 /**
  * /chat 的请求体
  *
- * 注意：这个协议是和 migpt 约定死的，见 examples/migpt/PROTOCOL.md。
+ * 注意：这个协议是和语音前端约定死的，见 PROTOCOL.md。
  * 前台再怎么加功能，这里一个字都不能变。
  */
 export interface ChatRequest {

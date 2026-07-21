@@ -65,7 +65,7 @@ export interface AgentReply {
    */
   aborted?: boolean;
   /**
-   * 外部服务对连续对话（唤醒状态）的显式意愿，见 PROTOCOL.md 的 keep_awake
+   * 外部服务对连续对话（唤醒状态）的显式意愿，见 examples/assistant/PROTOCOL.md 的 keep_awake
    *
    * 注意：`false` 表示本轮播完别再进连续对话（用户说了「关闭」之类的话）；
    * 缺省（undefined）表示外部服务没意见，由 keepAwake 配置自己决定。

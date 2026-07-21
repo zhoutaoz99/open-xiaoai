@@ -1,8 +1,8 @@
 # Open-XiaoAI × Assistant
 
-一个**有人格、有长期记忆**的多轮对话外部服务，带一个能看能改的管理前台，配合 [`examples/migpt`](../migpt) 使用。
+一个**有人格、有长期记忆**的多轮对话外部服务，带一个能看能改的管理前台，配合 [`examples/migpt`](../migpt) 或 [`examples/xiaozhi`](../xiaozhi) 使用。
 
-接口协议见 [`examples/migpt/PROTOCOL.md`](../migpt/PROTOCOL.md)。
+接口协议见 [`PROTOCOL.md`](./PROTOCOL.md)。
 
 ## 这是什么
 
@@ -132,7 +132,7 @@ HTTP 接口：`POST /chat`、`GET /health`、`GET /status`、`GET /memories`、`
 | --- | --- | --- |
 | `ASSISTANT_PORT=8000` | `AGENT_BASE_URL=http://127.0.0.1:8000` | 地址要指得对 |
 | `ASSISTANT_API_KEY=xxx` | `AGENT_API_KEY=xxx` | 要一致，都留空则不校验 |
-| `AGENT_PUSH_URL=http://127.0.0.1:4400` | `AGENT_PUSH_PORT=4400` | 主动提醒的推送通道；migpt 要配这个端口才打开，见 PROTOCOL.md 第十节 |
+| `AGENT_PUSH_URL=http://127.0.0.1:4400` | `AGENT_PUSH_PORT=4400` | 主动提醒的推送通道；语音前端要配这个端口才打开，见 PROTOCOL.md 第十节 |
 | `AGENT_PUSH_API_KEY=xxx` | `AGENT_PUSH_API_KEY=xxx` | 推送鉴权，要一致，都留空则不校验 |
 
 migpt 侧的 `OPENAI_*` 可以全部删掉（内置大模型已被绕过），`TTS_*` 必须保留。
@@ -179,7 +179,7 @@ migpt 侧的 `OPENAI_*` 可以全部删掉（内置大模型已被绕过），`T
 
 > ⚠️ **默认值变更**：`ASSISTANT_RESET_KEYWORDS` 原来是 `重新开始,清空记忆,忘掉刚才`。引入长期记忆后「清空记忆」有歧义（清哪个？），已从默认值里移除。清长期记忆请说「清空所有记忆」，见下面的 `MEMORY_WIPE_KEYWORDS`。
 
-> 💡 **退出连续对话**：`ASSISTANT_EXIT_KEYWORDS` 只在 migpt 开了 `KEEP_AWAKE`（连续对话）时才有可见效果——命中后助手回一句告别，并在响应里带上 `keep_awake:false`，告诉 migpt 播完就别再开收音窗口。它不清上下文、不落记忆，只是结束这一轮唤醒，跟「重新开始」是两码事。协议见 [`examples/migpt/PROTOCOL.md`](../migpt/PROTOCOL.md)。
+> 💡 **退出连续对话**：`ASSISTANT_EXIT_KEYWORDS` 只在语音前端开了连续对话时才有可见效果——命中后助手回一句告别，并在响应里带上 `keep_awake:false`，告诉前端播完就别再开收音窗口。它不清上下文、不落记忆，只是结束这一轮唤醒，跟「重新开始」是两码事。协议见 [`PROTOCOL.md`](./PROTOCOL.md)。
 
 **人格**：
 
@@ -353,7 +353,7 @@ curl -s http://127.0.0.1:8000/memories/snapshots | jq
 
 - 「提醒我…」「别让我忘了…」走 `add_todo` 工具当场记下；「记一下要买牛奶」这种不用提醒的，只进清单不打扰（前台待办页看得到）。
 - 到点的措辞是**用灵魂的口吻现场生成的**，不是干巴巴的模板——改了 `soul.md`，提醒的语气也跟着变。
-- 投递走 migpt 的**推送通道**（`AGENT_PUSH_URL` → migpt 的 `/push`，见 [`PROTOCOL.md`](../migpt/PROTOCOL.md) 第十节）。**没配推送地址时提醒只在后端打日志**，待办功能照常能记能查。
+- 投递走语音前端的**推送通道**（`AGENT_PUSH_URL` → 前端的 `/push`，见 [`PROTOCOL.md`](./PROTOCOL.md) 第十节）。**没配推送地址时提醒只在后端打日志**，待办功能照常能记能查。
 - 触发状态落库，**重启不会重播、也不会漏播**；migpt 断线一段时间再恢复，超过 `REMINDER_MAX_LATE_MINUTES` 的过期提醒会跳过，不一次性轰炸。
 - **待办和记忆是两回事**：「提醒我…」进待办，不进记忆库；`清空所有记忆` 也**不碰待办**（那是你未兑现的承诺，不是记忆）。设计详见 [`docs/todo.md`](docs/todo.md)。
 

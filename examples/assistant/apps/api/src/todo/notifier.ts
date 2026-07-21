@@ -15,7 +15,7 @@ export const NOTIFIER = Symbol("NOTIFIER");
 /**
  * 打 migpt 的推送通道：POST {pushUrl}/push
  *
- * 注意：协议见 examples/migpt/PROTOCOL.md 第十节。202 表示"已接受"不是
+ * 注意：协议见 PROTOCOL.md 第十节。202 表示"已接受"不是
  * "已播报"——音箱离线时 migpt 只在自己那边打日志，不会回传失败。所以能拿到
  * 一个非 2xx 之外的响应就算投递成功了，调度器据此 markFired。
  */

@@ -107,6 +107,9 @@ class MyStream:
 
         return data
 
+    def flush(self):
+        self.input_bytes.clear()
+
 
 class MyAudio:
     """PyAudio 替代品，用于创建和管理音频流"""

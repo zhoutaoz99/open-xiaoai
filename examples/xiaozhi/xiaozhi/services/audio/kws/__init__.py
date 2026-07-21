@@ -45,6 +45,15 @@ class _KWS:
     def resume(self):
         self.paused = False
 
+    def reset(self):
+        # 重置 KWS 内部状态，丢弃已缓存的音频（如 TTS 回音），
+        # 避免 sherpa-onnx 流状态被污染导致后续唤醒词检测失败
+        was = self.paused
+        self.paused = True
+        self.stream.flush()
+        SherpaOnnx.reset()
+        self.paused = was
+
     def _detection_loop(self):
         SherpaOnnx.start()
         self.stream.start_stream()

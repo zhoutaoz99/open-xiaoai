@@ -106,7 +106,7 @@ export const kAssistantConfig: AssistantConfig = {
      *
      * 注意：前缀匹配，和 resetKeywords 一致。只有 migpt 开了 KEEP_AWAKE
      * 时才有可见效果——响应里带上 keep_awake:false，告诉 migpt 播完这句
-     * 告别就别再开收音窗口，见 examples/migpt/PROTOCOL.md。
+     * 告别就别再开收音窗口，见 PROTOCOL.md。
      */
     exitKeywords: envList("ASSISTANT_EXIT_KEYWORDS") ?? ["关闭", "退下", "没事了", "再见", "拜拜"],
     /**
@@ -279,7 +279,7 @@ function getTodoConfig(): TodoConfig {
     /**
      * migpt 的推送地址，形如 http://127.0.0.1:4400（在 .env 文件里配置）
      *
-     * 注意：这条推送通道早在 examples/migpt/PROTOCOL.md 里定义好了，
+     * 注意：这条推送通道早在 PROTOCOL.md 里定义好了，
      * 到点主动提醒就走它。没配则提醒只打日志（功能降级不报错）。
      */
     pushUrl: envString("AGENT_PUSH_URL"),

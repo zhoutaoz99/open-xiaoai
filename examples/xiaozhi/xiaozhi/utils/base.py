@@ -2,6 +2,10 @@ import json
 import os
 import random
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def get_env(key: str, default_value: str | None = None):
     return os.environ.get(key, default_value)

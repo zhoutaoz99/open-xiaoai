@@ -10,9 +10,9 @@ import { SessionService } from "./session.service";
 /**
  * 音箱走的那条路
  *
- * 注意：请求和响应格式和 v1 一模一样，见 examples/migpt/PROTOCOL.md——
+ * 注意：请求和响应格式和 v1 一模一样，见 PROTOCOL.md——
  * 记忆检索的工具调用、tool 消息、二次请求全在服务内部闭环，
- * migpt 只看到一条正常的 SSE 文本流。
+ * 语音前端只看到一条正常的 SSE 文本流。
  *
  * 这里用 @Res() 直接拿原始响应对象自己写 SSE，而不是 Nest 的 @Sse()：
  * @Sse() 要求返回一个 Observable 并由它来决定事件格式，
@@ -152,9 +152,9 @@ function sse(res: Response, event: string, data: unknown) {
 /**
  * 直接回一句固定话术，兼容流式和非流式
  *
- * keepAwake 为 false 时，在响应里带上 keep_awake:false，告诉 migpt 播完这句
- * 别再进连续对话（用户说了「关闭」之类的话）。缺省不带该字段，migpt 按自己的
- * KEEP_AWAKE 配置决定，见 examples/migpt/PROTOCOL.md。
+ * keepAwake 为 false 时，在响应里带上 keep_awake:false，告诉语音前端播完这句
+ * 别再进连续对话（用户说了「关闭」之类的话）。缺省不带该字段，前端按自己的
+ * 配置决定，见 PROTOCOL.md。
  */
 function replyText(
   res: Response,

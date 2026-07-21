@@ -22,12 +22,16 @@ class _VAD:
         self.threshold = config.get("threshold", 0.01)
         self.min_speech_duration = config.get("min_speech_duration", 250)
         self.min_silence_duration = config.get("min_silence_duration", 500)
+        # VAD 启动后的静音缓冲期（毫秒），
+        # 在此期间忽略所有帧，等 TTS 余音/唤醒词回声消散
+        self.debounce_duration = config.get("debounce_duration", 0)
 
         # 状态变量
         self.paused = True
         self.thread = None
         self.speech_count = 0
         self.silence_count = 0
+        self.resume_time = 0.0
 
         self.audio = None
         self.stream = None
@@ -70,8 +74,13 @@ class _VAD:
         if not get_env("CLI"):
             return
 
+        if not self.stream:
+            return
+
         self.paused = False
         self.target = target
+        self._reset_state()
+        self.resume_time = time.monotonic()
         self.stream.start_stream()
 
     def _handle_speech_frame(self, frames):
@@ -168,6 +177,13 @@ class _VAD:
             if len(frames) != self.frame_size * 2:
                 time.sleep(0.01)
                 continue
+
+            # debounce 期内丢弃所有帧，等 TTS 余音/唤醒词回声消散
+            if self.debounce_duration > 0:
+                elapsed_ms = (time.monotonic() - self.resume_time) * 1000
+                if elapsed_ms < self.debounce_duration:
+                    time.sleep(0.01)
+                    continue
 
             # 检测是否是语音
             speech_prob = Silero.vad(frames, self.sample_rate) or 0

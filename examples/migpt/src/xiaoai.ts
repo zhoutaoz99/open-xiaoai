@@ -27,13 +27,13 @@ export type OpenXiaoAIConfig = Prettify<
      */
     tts?: TTSConfig;
     /**
-     * 外部对话服务配置，接口协议详见 PROTOCOL.md
+     * 外部对话服务配置，接口协议详见 examples/assistant/PROTOCOL.md
      *
      * 如需交回小爱原生处理，可以删除该配置
      */
     agent?: AgentConfig;
     /**
-     * 提醒推送服务配置，接口协议详见 PROTOCOL.md
+     * 提醒推送服务配置，接口协议详见 examples/assistant/PROTOCOL.md
      *
      * 如需关闭外部服务主动推送提醒，可以删除该配置
      */
@@ -141,7 +141,7 @@ class OpenXiaoAIEngine extends MiGPTEngine {
     }
     if ((reply as AgentReply).keepAwake === false) {
       // 外部服务显式要求退出连续对话（用户说了「关闭」之类的话），
-      // 哪怕这句告别有内容，也不再开收音窗口。见 PROTOCOL.md 的 keep_awake。
+      // 哪怕这句告别有内容，也不再开收音窗口。见 examples/assistant/PROTOCOL.md 的 keep_awake。
       return false;
     }
     // 有内容引擎才会播报，没内容就没什么可追问的

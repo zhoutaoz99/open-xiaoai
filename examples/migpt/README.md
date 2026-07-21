@@ -11,7 +11,7 @@
 > 本项目**不再自己调用大模型**，只负责唤醒、语音识别和语音播报。
 > 识别到的文字会转发给一个**外部对话服务**，再把它返回的文字播报出来。
 >
-> - 接口协议：[👉 PROTOCOL.md](./PROTOCOL.md)
+> - 接口协议：[👉 PROTOCOL.md](../assistant/PROTOCOL.md)
 > - 开箱即用的外部服务：[👉 examples/assistant](../assistant)（纯内存多轮对话，原来的 `OPENAI_*` 配置搬过去就能用）
 
 ## 快速开始
@@ -36,7 +36,7 @@ cd examples/migpt
 
 ```bash
 # 外部对话服务配置，对应 config.ts 里的 agent 配置
-# 接口协议详见 PROTOCOL.md，参考实现见 examples/assistant
+# 接口协议详见 examples/assistant/PROTOCOL.md，参考实现见 examples/assistant
 
 #你的外部对话服务的接口地址（不包含 /chat 部分）
 #注意：删除该配置后，所有消息都会交回小爱原生处理
@@ -164,7 +164,7 @@ pnpm dev
    **该功能需要刷入开启了多轮对话的补丁固件**（[👉 client-patch](../../packages/client-patch/README.md)）。原版固件下这个开关不会报错，但也不会有任何效果。
    注意只有外部服务的回复（以及你在 `onMessage` 里自己返回的回复）才会进入连续对话，交回小爱原生处理的消息和外部服务推送的提醒都不会。
 
-   连续对话期间，外部服务可以在响应里带上 `keep_awake: false` 主动退出（比如用户说「关闭」），migpt 把这句话播完就不再开收音窗口，详见 [PROTOCOL.md](./PROTOCOL.md) 的 5.4 节。
+   连续对话期间，外部服务可以在响应里带上 `keep_awake: false` 主动退出（比如用户说「关闭」），migpt 把这句话播完就不再开收音窗口，详见 [PROTOCOL.md](../assistant/PROTOCOL.md) 的 5.4 节。
 
 > [!NOTE]
 > 本项目只是一个简单的演示程序，抛砖引玉。如果你想要更多的功能，比如唤醒词识别、语音转文字等（甚至是对接 OpenAI 的 [Realtime API](https://platform.openai.com/docs/guides/realtime)），可参考本项目代码自行实现。

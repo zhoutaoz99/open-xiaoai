@@ -81,6 +81,11 @@ class SpeakerManager:
         参数:
             awake: 是否唤醒
             silent: 是否静默唤醒
+
+        注意：唤醒（awake=True）在小爱音箱 Pro（LX06）等固件上无效，
+        src:0/src:1 都不是唤醒事件（实测 src:1 是闹钟事件，mipns 直接忽略），
+        不会亮灯。要点灯请改用 run_shell("/bin/wakeup.sh")。
+        详见 packages/client-patch/HACKING.md。
         """
 
         if awake:
