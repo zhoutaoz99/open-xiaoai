@@ -276,6 +276,38 @@ export class SpeakerManager implements ISpeaker {
   }
 
   /**
+   * 删除所有原生提醒和闹钟
+   *
+   * 小爱云端基于流式识别建提醒/闹钟，在 ASR 定稿（onMessage）前约 0.4-1 秒就已落库，
+   * 无法阻止生成，只能在拿到文字后立即删除。
+   */
+  async cleanNativeAlarms() {
+    try {
+      const res = await this.runShell(
+        `ubus call alarm query '{"type":"alarm"}'`,
+        { timeout: 3000 }
+      );
+      if (!res?.stdout) {
+        return;
+      }
+      console.log("🔍 原生闹钟查询结果:", res.stdout);
+      const ids =
+        res.stdout.match(
+          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+        ) ?? [];
+      for (const id of new Set(ids)) {
+        await this.runShell(
+          `ubus call alarm delete '{"type":"alarm","id":"${id}"}'`,
+          { timeout: 3000 }
+        );
+        console.log(`🗑️ 已删除原生闹钟/提醒: ${id}`);
+      }
+    } catch (e) {
+      console.warn("⚠️ 清理原生闹钟/提醒失败", e);
+    }
+  }
+
+  /**
    * 执行脚本
    */
   async runShell(

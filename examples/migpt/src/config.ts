@@ -129,6 +129,9 @@ export const kOpenXiaoAIConfig: OpenXiaoAIConfig = {
     // 必须先打断小爱，否则它会用自己的云端回答跟我们抢着说话
     await engine.speaker.abortXiaoAI();
 
+    // 小爱云端基于流式识别已经建了原生提醒，立即删掉，避免和我们的提醒重复响
+    await engine.speaker.cleanNativeAlarms();
+
     const reply = await Agent.chat({
       ...msg,
       speaker: engine.currentSpeaker,
