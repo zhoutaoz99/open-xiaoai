@@ -22,7 +22,6 @@ export class AppController {
     return {
       status: "ok",
       memory: {
-        enabled: this.memory.enabled,
         size: this.memory.size,
       },
       sessions: this.sessions.size,
@@ -50,7 +49,6 @@ export class AppController {
         idleInSeconds: s.idleInMs === null ? null : Math.max(0, Math.round(s.idleInMs / 1000)),
       },
       memory: {
-        enabled: this.memory.enabled,
         consolidating: this.memory.isConsolidating,
         pendingChanges: this.memory.pendingChanges,
         lastConsolidatedAt: this.memory.lastConsolidatedAt,

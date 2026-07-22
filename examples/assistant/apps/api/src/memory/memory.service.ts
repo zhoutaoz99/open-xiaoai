@@ -7,6 +7,7 @@ import {
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import type { LLM } from "../llm/llm.service";
 import { MEMORY_LLM, type ToolCall } from "../llm/llm.types";
+import { kSearchTool } from "../prompts";
 import { SoulService } from "../soul/soul.service";
 import { TranscriptService } from "../transcript/transcript.service";
 import { consolidate, kMaxTranscript } from "./consolidator";
@@ -46,28 +47,6 @@ const kUpcomingDays = 3;
  * 注意：这是唯一保留的自动注入，条目少而具体才不构成注意力污染
  */
 const kUpcomingMax = 3;
-
-const kSearchTool: ChatCompletionTool = {
-  type: "function",
-  function: {
-    name: "search_memory",
-    description:
-      "检索你的长期记忆库（关于这个家庭的身份、事实、偏好、事件）。当需要用户或家人的具体信息而当前上下文里没有时，先检索再回答。" +
-      "用户问他自己的事（我是谁、我叫什么、我的车牌号是多少）也要用它检索。" +
-      "声纹识别到说话人时，用他的名字检索（如「周涛 名字」），否则用「用户」。",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description:
-            "空格分隔的检索词：人名、事物、主题。问用户自己的事就用「用户」当人称，比如：用户 名字；问家人就用名字，比如：朵朵 过敏。声纹识别到说话人时用他的名字，比如：周涛 名字",
-        },
-      },
-      required: ["query"],
-    },
-  },
-};
 
 /**
  * 算出下一个 HH:MM（本地时间）的时间戳，已经过了就算明天的
@@ -116,10 +95,6 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
     private soul: SoulService
   ) {}
 
-  get enabled() {
-    return this.config.enabled;
-  }
-
   get size() {
     return this.store.size;
   }
@@ -148,9 +123,6 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onModuleInit() {
-    if (!this.enabled) {
-      return;
-    }
     await this.load();
     await this.write(() => this.prune());
 
@@ -214,9 +186,6 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 模型会查，但"明天有钢琴课"应该在聊到出游时不查自知。
    */
   upcoming(): MemoryItem[] {
-    if (!this.enabled) {
-      return [];
-    }
     const from = today();
     const to = today(new Date(Date.now() + kUpcomingDays * kDay));
     return this.store
@@ -246,7 +215,7 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 立刻巩固一次，不管有没有新记忆（给前台的按钮和排查用）
    */
   async consolidateNow(): Promise<boolean> {
-    if (!this.enabled || this.consolidating) {
+    if (this.consolidating) {
       return false;
     }
     this.consolidating = true;
@@ -263,7 +232,7 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 随请求声明的工具，记忆关闭时不挂工具
    */
   tools(): ChatCompletionTool[] {
-    return this.enabled ? [kSearchTool] : [];
+    return [kSearchTool];
   }
 
   list(): readonly MemoryItem[] {
@@ -279,9 +248,7 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
   }
 
   isWipeCommand(text: string): boolean {
-    // 精确匹配而不是 startsWith："清空所有记忆里关于狗的部分"
-    // 应该落到抽取器去删一条，不能被误杀成全量清空
-    return this.enabled && this.config.wipeKeywords.includes(text);
+    return this.config.wipeKeywords.includes(text);
   }
 
   /**
@@ -291,9 +258,6 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 只有模型的操作进流水、人的操作不进，那这份审计就是假的。
    */
   async remove(id: string): Promise<boolean> {
-    if (!this.enabled) {
-      return false;
-    }
     return this.write(async () => {
       const item = this.store.remove(id);
       if (!item) {
@@ -333,7 +297,7 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
   /**
    * 检索记忆，返回给模型看的文本
    *
-   * 注意：本地打分，<1ms、零网络。tools 和 marker 两种传输共用这一个执行器。
+   * 注意：本地打分，<1ms、零网络。
    */
   search(query: string, hint: string): string {
     const items = searchMemories(this.store.all(), query, hint, {
@@ -358,9 +322,6 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 是因为会话在内存里、有 TTL、随时可能重启——经历转瞬即逝，必须当场记。
    */
   onTurn(round: Round) {
-    if (!this.enabled) {
-      return;
-    }
     this.write(async () => {
       let turnId: string | undefined;
       try {
@@ -484,9 +445,6 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * @param reason 只用于打日志和提炼记录，两个入口判断条件是一样的
    */
   private maybeConsolidate(reason: string) {
-    if (!this.enabled) {
-      return;
-    }
     // 已经在炼了：别把这次触发丢掉。抽取比巩固慢，慢一轮抽出来的记忆
     // 常常赶不上正在跑的这班巩固——上一版就是这么漏掉"用户喜欢吃辣"的：
     // 它抽完时，那唯一一次巩固早跑过去了，早退直接把这次触发扔了。
@@ -522,7 +480,7 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 巩固进行中攒下的触发，炼完补跑一次（没有新记忆时 runConsolidation 会空转跳过）
    */
   private flushPendingConsolidation() {
-    if (!this.enabled || this.consolidating || this.consolidatePending === undefined) {
+    if (this.consolidating || this.consolidatePending === undefined) {
       return;
     }
     const reason = this.consolidatePending;

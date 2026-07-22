@@ -17,7 +17,6 @@ type SortKey = "createdAt" | "hits" | "importance";
 
 export default function MemoriesPage() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
-  const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [keyword, setKeyword] = useState("");
@@ -33,7 +32,6 @@ export default function MemoriesPage() {
     try {
       const r = await api.memories();
       setMemories(r.memories);
-      setEnabled(r.enabled);
       setError(undefined);
     } catch (e) {
       setError((e as Error).message);
@@ -110,9 +108,6 @@ export default function MemoriesPage() {
         </p>
       </div>
 
-      {!enabled ? (
-        <div className="notice error">记忆已关闭（MEMORY_ENABLED=false），这里是空的。</div>
-      ) : null}
       {error ? <div className="notice error">{error}</div> : null}
 
       <div className="toolbar">
@@ -240,8 +235,6 @@ export default function MemoriesPage() {
         ) : (
           <button
             className="btn danger-solid"
-            disabled={!enabled}
-            title={enabled ? undefined : "记忆已关闭，没有数据可清"}
             onClick={() => {
               setWipeNote(undefined);
               setConfirmingWipe(true);

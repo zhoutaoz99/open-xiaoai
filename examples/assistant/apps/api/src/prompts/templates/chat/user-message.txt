@@ -1,0 +1,10 @@
+【现在】{{now}}
+{{#if speaker}}
+【说话人】{{speaker}}（声纹识别）
+{{/if}}
+{{#if schedule}}
+【接下来几天的安排】
+{{schedule}}
+{{/if}}
+
+【用户说】{{text}}

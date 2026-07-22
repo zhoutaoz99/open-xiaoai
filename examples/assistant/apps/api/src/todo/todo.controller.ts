@@ -45,7 +45,7 @@ export class TodoController {
   async list(@Query("status") status?: string) {
     const filter = kStatuses.find((s) => s === status);
     const todos = await this.todo.list(filter ? { status: filter } : undefined);
-    return { enabled: this.todo.enabled, todos };
+    return { todos };
   }
 
   @Post()

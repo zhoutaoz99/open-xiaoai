@@ -87,7 +87,7 @@ export const api = {
     ),
 
   memories: () =>
-    request<{ enabled: boolean; profile: string; memories: MemoryItem[] }>("memories"),
+    request<{ profile: string; memories: MemoryItem[] }>("memories"),
 
   deleteMemory: (id: string) =>
     request<{ ok: boolean; id: string }>(`memories/${encodeURIComponent(id)}`, {
@@ -112,7 +112,7 @@ export const api = {
    * 待办列表。status 省略则返回全部
    */
   todos: (params: { status?: string } = {}) =>
-    request<{ enabled: boolean; todos: Todo[] }>(`todos?${query(params)}`),
+    request<{ todos: Todo[] }>(`todos?${query(params)}`),
 
   addTodo: (input: { content: string; dueAt?: string | null; remind?: boolean }) =>
     request<Todo>("todos", { method: "POST", body: JSON.stringify(input) }),

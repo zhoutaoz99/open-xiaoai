@@ -2,6 +2,7 @@ import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import type { ToolCall } from "../llm/llm.types";
 import { nowISO } from "../memory/memory.types";
+import { kTodoTools } from "../prompts";
 import { TODO_STORE, type TodoStore } from "./todo.store";
 import {
   TODO_CONFIG,
@@ -27,71 +28,6 @@ const kUpcomingDays = 3;
  */
 const kUpcomingMax = 3;
 
-const kTools: ChatCompletionTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "add_todo",
-      description:
-        "记一条待办，或设一个到点主动提醒用户的事项。用户说「提醒我…」「记一下要…」「别让我忘了…」这类话时用它。" +
-        "重要：调用时**不要同时说话或解释**，直接调用工具；等工具返回结果后，再用一句话确认即可——否则用户会先听到你的话、再听到确认，等于回了两遍。" +
-        "如果上下文中有【说话人】（声纹识别），content 里要带上是谁的事，如「周涛：三点开会」，方便区分不同家人的待办。",
-      parameters: {
-        type: "object",
-        properties: {
-          content: {
-            type: "string",
-            description: "要做或要提醒的事，一句话，如：三点开会 / 买牛奶",
-          },
-          dueAt: {
-            type: "string",
-            description:
-              "提醒时刻，绝对时间 ISO 格式，如 2026-07-18T15:00:00+08:00。上下文的【现在】给了当前日期和时间，据它把「两分钟后」「半小时后」「三点」「明天上午」这类相对说法换算成绝对时刻——相对时间尤其要按【现在】算，不能猜；没有明确时间就省略这个参数。",
-          },
-          remind: {
-            type: "boolean",
-            description:
-              "到点是否主动开口提醒。用户说「提醒我」时为 true；只是「记一下、列个清单」不用主动提醒时为 false。默认 true。",
-          },
-        },
-        required: ["content"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_todos",
-      description: "列出当前的待办事项。用户问「我有哪些待办」「还有什么没做」时用它。",
-      parameters: {
-        type: "object",
-        properties: {
-          status: {
-            type: "string",
-            enum: ["pending", "done", "cancelled"],
-            description: "筛选状态，默认 pending（未完成）",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "complete_todo",
-      description:
-        "把一条待办标记为完成。用户说「…做完了」「买好了」时用它；不确定 id 就先用 list_todos 查。",
-      parameters: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "待办 id，形如 t_x7k2p9" },
-        },
-        required: ["id"],
-      },
-    },
-  },
-];
-
 /**
  * 待办与提醒的对外门面
  *
@@ -110,21 +46,12 @@ export class TodoService implements OnModuleInit {
     @Inject(TODO_STORE) private store: TodoStore
   ) {}
 
-  get enabled() {
-    return this.config.enabled;
-  }
-
   async onModuleInit() {
-    if (this.enabled) {
-      await this.refresh();
-    }
+    await this.refresh();
   }
 
-  /**
-   * 随请求声明的工具，待办关闭时不挂
-   */
   tools(): ChatCompletionTool[] {
-    return this.enabled ? kTools : [];
+    return kTodoTools;
   }
 
   /**
@@ -243,9 +170,6 @@ export class TodoService implements OnModuleInit {
    * 重新载入 pending 缓存
    */
   async refresh(): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
     try {
       this.cache = await this.store.list({ status: "pending" });
     } catch (e) {
@@ -260,9 +184,6 @@ export class TodoService implements OnModuleInit {
    * 含已过期但还没完成的（"你还有件事没做"也值得提一嘴）。
    */
   upcoming(): Todo[] {
-    if (!this.enabled) {
-      return [];
-    }
     const until = Date.now() + kUpcomingDays * kDay;
     return this.cache
       .filter((t) => t.dueAt && new Date(t.dueAt).getTime() <= until)

@@ -11,20 +11,6 @@ export interface SoulConfig {
    */
   profileFile: string;
   /**
-   * 旧版系统提示词（deprecated）
-   *
-   * 注意：设置后整体替换「灵魂 + 播报约束」
-   */
-  systemPrompt?: string;
-  /**
-   * 记忆是否开启，关闭时不注入画像、不说明记忆工具
-   */
-  memoryEnabled: boolean;
-  /**
-   * 记忆检索的传输方式，决定说明书里怎么教模型发起检索
-   */
-  recallTransport: "tools" | "marker";
-  /**
    * 画像预算（字）
    */
   profileMaxChars: number;

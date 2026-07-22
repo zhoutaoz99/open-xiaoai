@@ -150,21 +150,12 @@ function getSoulConfig(): SoulConfig {
      * 灵魂文件：性格、说话风格、自称、边界（在 .env 文件里配置）
      *
      * 注意：系统永不改写它，只有你和前台能改；文件不存在时首次启动会生成模板。
-     * 它不受 MEMORY_ENABLED 影响——人格不是记忆。
      */
     soulFile: envString("ASSISTANT_SOUL_FILE") ?? "data/soul.md",
     /**
      * 画像文件：助手对这个家的理解（在 .env 文件里配置）
      */
     profileFile: envString("MEMORY_PROFILE_FILE") ?? "data/profile.md",
-    /**
-     * 旧版系统提示词（在 .env 文件里配置）
-     *
-     * 注意：已废弃。设置后会整体替换「灵魂 + 播报约束」，建议改用 soul.md。
-     */
-    systemPrompt: envString("ASSISTANT_SYSTEM_PROMPT"),
-    memoryEnabled: envBoolean("MEMORY_ENABLED") ?? true,
-    recallTransport: envString("MEMORY_RECALL_TRANSPORT") === "marker" ? "marker" : "tools",
     profileMaxChars: envNumber("MEMORY_PROFILE_MAX_CHARS") ?? 1000,
   };
 }
@@ -174,12 +165,6 @@ function getSoulConfig(): SoulConfig {
  */
 function getMemoryConfig(): MemoryConfig {
   return {
-    /**
-     * 记忆总开关（在 .env 文件里配置）
-     *
-     * 注意：关闭后回到纯内存版，但灵魂照常生效
-     */
-    enabled: envBoolean("MEMORY_ENABLED") ?? true,
     /**
      * 对话轮次保留天数（在 .env 文件里配置）
      *
@@ -202,26 +187,11 @@ function getMemoryConfig(): MemoryConfig {
      */
     recallMaxChars: envNumber("MEMORY_RECALL_MAX_CHARS") ?? 1500,
     /**
-     * 每个请求最多允许几轮带检索的模型往返（在 .env 文件里配置）
-     *
-     * 注意：达到上限后会摘掉工具逼模型作答，防止它查完再查停不下来。
-     * 数的是往返轮次，不是工具调用条数——模型可能在一轮里并行查好几个词，
-     * 那也只是一次往返，而检索本身是本地的，不要钱。
-     */
-    searchMaxCalls: envNumber("MEMORY_SEARCH_MAX_CALLS") ?? 2,
-    /**
      * 检索时先播的填补话术（在 .env 文件里配置）
      *
      * 注意：检索要多一次模型往返，干等着像是卡死了。置空关闭。
      */
     searchFiller: envString("MEMORY_SEARCH_FILLER") ?? "让我想想。",
-    /**
-     * 记忆检索的传输方式（在 .env 文件里配置）
-     *
-     * 注意：部分 OpenAI 兼容服务的流式工具调用不稳（不支持、或 delta 格式不同），
-     * 那种情况下换成 marker 文本标记协议，语义完全不变、只换传输。
-     */
-    recallTransport: envString("MEMORY_RECALL_TRANSPORT") === "marker" ? "marker" : "tools",
     /**
      * 画像预算，单位字（在 .env 文件里配置）
      */
@@ -270,12 +240,6 @@ function getMemoryConfig(): MemoryConfig {
  */
 function getTodoConfig(): TodoConfig {
   return {
-    /**
-     * 待办总开关（在 .env 文件里配置）
-     *
-     * 注意：关了不挂待办工具、不启动提醒调度器
-     */
-    enabled: envBoolean("TODO_ENABLED") ?? true,
     /**
      * migpt 的推送地址，形如 http://127.0.0.1:4400（在 .env 文件里配置）
      *

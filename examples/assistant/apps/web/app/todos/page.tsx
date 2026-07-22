@@ -12,7 +12,6 @@ const kStatusLabel: Record<TodoStatus, string> = {
 
 export default function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [filter, setFilter] = useState<string>("");
@@ -28,7 +27,6 @@ export default function TodosPage() {
     try {
       const r = await api.todos();
       setTodos(r.todos);
-      setEnabled(r.enabled);
       setError(undefined);
     } catch (e) {
       setError((e as Error).message);
@@ -113,9 +111,6 @@ export default function TodosPage() {
         </p>
       </div>
 
-      {!enabled ? (
-        <div className="notice error">待办已关闭（TODO_ENABLED=false），这里是空的。</div>
-      ) : null}
       {error ? <div className="notice error">{error}</div> : null}
 
       <div className="panel" style={{ marginBottom: 16 }}>
@@ -143,7 +138,7 @@ export default function TodosPage() {
             <input type="checkbox" checked={remind} onChange={(e) => setRemind(e.target.checked)} />
             到点提醒
           </label>
-          <button className="btn primary" onClick={add} disabled={adding || !content.trim() || !enabled}>
+          <button className="btn primary" onClick={add} disabled={adding || !content.trim()}>
             {adding ? "添加中…" : "添加"}
           </button>
         </div>

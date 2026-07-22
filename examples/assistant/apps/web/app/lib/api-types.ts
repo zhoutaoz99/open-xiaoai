@@ -158,7 +158,7 @@ export interface MemorySnapshot {
 
 export interface HealthInfo {
   status: string;
-  memory: { enabled: boolean; size: number };
+  memory: { size: number };
   sessions: number;
   transcript: boolean;
 }
@@ -176,7 +176,6 @@ export interface StatusInfo {
     idleInSeconds: number | null;
   };
   memory: {
-    enabled: boolean;
     /** 正在巩固画像 */
     consolidating: boolean;
     /** 上次巩固以来还有多少条新记忆没进画像 */

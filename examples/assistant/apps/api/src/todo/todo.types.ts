@@ -76,10 +76,6 @@ export interface TodoFilter {
 
 export interface TodoConfig {
   /**
-   * 待办总开关，关了不挂工具、不启动调度器
-   */
-  enabled: boolean;
-  /**
    * migpt 的推送地址，形如 http://127.0.0.1:4400
    *
    * 注意：没配则提醒只打日志（功能降级不报错），见 notifier.ts。

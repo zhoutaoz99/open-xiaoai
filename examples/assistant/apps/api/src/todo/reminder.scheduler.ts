@@ -6,18 +6,11 @@ import {
 } from "@nestjs/common";
 import type { LLM } from "../llm/llm.service";
 import { MEMORY_LLM } from "../llm/llm.types";
+import { kReminderRule, reminderUserMessage } from "../prompts";
 import { SoulService } from "../soul/soul.service";
 import { NOTIFIER, type Notifier } from "./notifier";
 import { TodoService } from "./todo.service";
 import { TODO_CONFIG, type Todo, type TodoConfig } from "./todo.types";
-
-/**
- * fire 时给模型的措辞要求
- *
- * 注意：只要一句能直接播报的话。附带 soul 是为了用助手自己的口吻，
- * 但不注入记忆规则/画像那一大套——这是主动提醒，不是一轮对话。
- */
-const kReminderRule = `你正在通过家里的音箱，主动提醒主人一件事。请用你自己的口吻，把这件事自然地说出来提醒主人。要求：一句话、口语化、带正常标点、不要 Markdown 或表情、不要任何解释或多余的话，只说提醒本身。`;
 
 /**
  * 主动提醒调度器：分钟级扫描到期待办，用人格措辞后投递到音箱
@@ -42,9 +35,6 @@ export class ReminderScheduler implements OnModuleInit, OnApplicationShutdown {
   ) {}
 
   onModuleInit() {
-    if (!this.config.enabled) {
-      return;
-    }
     const interval = Math.max(10, this.config.scanSeconds) * 1000;
     this.timer = setInterval(() => {
       this.tick().catch((e) => console.error("❌ 提醒调度出错", e));
@@ -113,7 +103,7 @@ export class ReminderScheduler implements OnModuleInit, OnApplicationShutdown {
     try {
       const result = await this.llm.chat([
         { role: "system", content: `${this.soul.soulText()}\n\n${kReminderRule}` },
-        { role: "user", content: `要提醒的事：${todo.content}` },
+        { role: "user", content: reminderUserMessage(todo.content) },
       ]);
       const text = result.content.trim();
       return text || fallback;

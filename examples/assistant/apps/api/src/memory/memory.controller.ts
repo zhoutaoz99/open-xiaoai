@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   Controller,
   Delete,
   Get,
@@ -28,7 +27,6 @@ export class MemoryController {
   @Get("memories")
   memories() {
     return {
-      enabled: this.memory.enabled,
       profile: this.soul.profileText(),
       memories: this.memory.list(),
     };
@@ -39,9 +37,6 @@ export class MemoryController {
    */
   @Delete("memories/:id")
   async remove(@Param("id") id: string) {
-    if (!this.memory.enabled) {
-      throw new ConflictException("memory disabled");
-    }
     if (!(await this.memory.remove(id))) {
       throw new NotFoundException(`记忆 ${id} 不存在`);
     }
@@ -89,9 +84,6 @@ export class MemoryController {
    */
   @Post("memories/consolidate")
   async consolidate() {
-    if (!this.memory.enabled) {
-      throw new ConflictException("memory disabled");
-    }
     const ok = await this.memory.consolidateNow();
     return {
       ok,
@@ -111,10 +103,6 @@ export class MemoryController {
    */
   @Post("memories/wipe")
   async wipe() {
-    if (!this.memory.enabled) {
-      // 记忆关着时对话流水根本不落库，没有「所有数据」可清
-      throw new ConflictException("memory disabled");
-    }
     await this.memory.wipe();
     return { ok: true };
   }

@@ -218,10 +218,6 @@ export interface ListExtractionsQuery {
 
 export interface MemoryConfig {
   /**
-   * 记忆总开关，关闭后回到纯内存版
-   */
-  enabled: boolean;
-  /**
    * 对话流水保留天数，0 表示不落流水
    */
   transcriptDays: number;
@@ -237,19 +233,6 @@ export interface MemoryConfig {
    * 单次检索结果的长度预算（字）
    */
   recallMaxChars: number;
-  /**
-   * 每个请求最多允许几轮带检索的模型往返
-   *
-   * 注意：数的是往返轮次，不是工具调用条数——模型可能在一轮里并行查好几个词
-   */
-  searchMaxCalls: number;
-  /**
-   * 记忆检索的传输方式
-   *
-   * - tools：标准 function calling
-   * - marker：文本标记协议，给流式工具调用不稳的服务商兜底，语义完全一样
-   */
-  recallTransport: "tools" | "marker";
   /**
    * 检索时先播的填补话术，置空关闭
    */

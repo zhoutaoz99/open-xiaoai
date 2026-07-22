@@ -60,17 +60,10 @@ function banner(memory: MemoryService) {
     `   会话: 最多 ${session.maxTurns} 轮，` +
       `闲置 ${session.ttl / 1000} 秒算聊完（纯内存，重启即清空）`
   );
-  if (memory.enabled) {
-    console.log(`   记忆: Postgres（已载入 ${memory.size} 条）`);
-    console.log(
-      `   画像: ${soul.profileFile}（每轮对话结束时炼一版，另每天 ${mem.consolidateAt} 兜底）`
-    );
-  } else {
-    console.log("   记忆: 已关闭（MEMORY_ENABLED=false）");
-  }
-  if (soul.systemPrompt) {
-    console.warn("⚠️ ASSISTANT_SYSTEM_PROMPT 已废弃，它会覆盖灵魂文件，建议改用 soul.md");
-  }
+  console.log(`   记忆: Postgres（已载入 ${memory.size} 条）`);
+  console.log(
+    `   画像: ${soul.profileFile}（每轮对话结束时炼一版，另每天 ${mem.consolidateAt} 兜底）`
+  );
   if (!chat.apiKey) {
     console.warn("⚠️ 未配置 ASSISTANT_API_KEY，任何人都能调用本服务");
   }
