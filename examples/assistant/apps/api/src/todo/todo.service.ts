@@ -1,8 +1,8 @@
 import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
-import type { ToolCall } from "../llm/llm.types";
 import { nowISO } from "../memory/memory.types";
 import { kTodoTools } from "../prompts";
+import type { ToolProvider } from "../tools/tool.types";
 import { TODO_STORE, type TodoStore } from "./todo.store";
 import {
   TODO_CONFIG,
@@ -35,7 +35,7 @@ const kUpcomingMax = 3;
  * upcoming() 走内存缓存（同记忆的 upcoming），不在应答路径上跑 SQL。
  */
 @Injectable()
-export class TodoService implements OnModuleInit {
+export class TodoService implements OnModuleInit, ToolProvider {
   /**
    * pending 待办的内存缓存，供 upcoming() 同步、零 IO 地读——应答路径上不查库
    */
@@ -54,31 +54,14 @@ export class TodoService implements OnModuleInit {
     return kTodoTools;
   }
 
-  /**
-   * 执行模型发起的工具调用
-   *
-   * 注意：签名是 async——待办的增删查都要落库。chat 的工具循环 await 它。
-   */
-  async runTool(call: ToolCall): Promise<string> {
-    let args: Record<string, unknown> = {};
-    try {
-      args = JSON.parse(call.arguments || "{}");
-    } catch (_) {
-      // 参数是模型生成的，可能不是合法 JSON
-    }
-    switch (call.name) {
-      case "add_todo":
-        return this.runAdd(args);
-      case "list_todos":
-        return this.runList(args);
-      case "complete_todo":
-        return this.runComplete(args);
-      default:
-        return `没有名为 ${call.name} 的工具。`;
-    }
+  promptHints(): string {
+    return (
+      `- 但家人让你“提醒”“记个待办”“别让我忘了”这类，是要你到点主动提醒——**该用 add_todo 就用**，别当成普通记忆敷衍过去（没挂待办工具时才照上一条处理）。` +
+      `用 add_todo / list_todos / complete_todo 时**先别开口，等记好了再一句话确认**，别调用前先说一遍、确认时又说一遍。`
+    );
   }
 
-  private async runAdd(args: Record<string, unknown>): Promise<string> {
+  async add_todo(args: Record<string, unknown>): Promise<string> {
     const content = typeof args.content === "string" ? args.content.trim() : "";
     if (!content) {
       return "没能记下待办：内容为空。";
@@ -95,7 +78,7 @@ export class TodoService implements OnModuleInit {
     return `已记下待办（${todo.id}）：${todo.content}。`;
   }
 
-  private async runList(args: Record<string, unknown>): Promise<string> {
+  async list_todos(args: Record<string, unknown>): Promise<string> {
     const status = (["pending", "done", "cancelled"] as const).find((s) => s === args.status);
     const todos = await this.store.list({ status: status ?? "pending" });
     if (!todos.length) {
@@ -106,7 +89,7 @@ export class TodoService implements OnModuleInit {
       .join("\n");
   }
 
-  private async runComplete(args: Record<string, unknown>): Promise<string> {
+  async complete_todo(args: Record<string, unknown>): Promise<string> {
     const id = typeof args.id === "string" ? args.id.trim() : "";
     if (!id) {
       return "没能完成待办：缺少 id。";

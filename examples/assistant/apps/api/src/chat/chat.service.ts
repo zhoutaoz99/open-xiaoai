@@ -7,6 +7,7 @@ import { MEMORY_CONFIG, type MemoryConfig } from "../memory/memory.types";
 import { userMessageTemplate } from "../prompts";
 import { SoulService } from "../soul/soul.service";
 import { TodoService } from "../todo/todo.service";
+import { ToolRegistry } from "../tools/tool.registry";
 import { SessionService } from "./session.service";
 
 /**
@@ -14,10 +15,6 @@ import { SessionService } from "./session.service";
  */
 interface StepContext {
   messages: ChatCompletionMessageParam[];
-  /**
-   * 本轮提问原文，检索时作为辅助线索
-   */
-  hint: string;
   signal: AbortSignal;
   stream: boolean;
   /**
@@ -38,7 +35,8 @@ export class ChatService implements OnModuleInit {
     private sessions: SessionService,
     private soul: SoulService,
     private memory: MemoryService,
-    private todo: TodoService
+    private todo: TodoService,
+    private toolRegistry: ToolRegistry
   ) {}
 
   onModuleInit() {
@@ -53,13 +51,11 @@ export class ChatService implements OnModuleInit {
    * 注意：对外仍然只是一条普通的 SSE 流，/chat 协议一个字都没变——
    * 工具消息不出这个方法。
    *
-   * @param hint 本轮提问原文，检索时作为辅助线索
    * @param onDelta 传了就走流式，不传就一次性返回
    * @returns 模型生成的完整回复（不含填补话术）
    */
   async complete(
     messages: ChatCompletionMessageParam[],
-    hint: string,
     signal: AbortSignal,
     onDelta?: (text: string) => void
   ): Promise<string> {
@@ -81,7 +77,6 @@ export class ChatService implements OnModuleInit {
     for (;;) {
       const context: StepContext = {
         messages,
-        hint,
         signal,
         stream: !!onDelta,
         emit,
@@ -102,7 +97,7 @@ export class ChatService implements OnModuleInit {
    */
   private async stepTools(ctx: StepContext): Promise<boolean> {
     const { messages, signal } = ctx;
-    const tools = [...this.memory.tools(), ...this.todo.tools()];
+    const tools = this.toolRegistry.allTools();
     const options = { signal, ...(tools.length ? { tools } : {}) };
     const result = ctx.stream
       ? await this.llm.chatStream(messages, { ...options, onDelta: ctx.emit })
@@ -122,11 +117,8 @@ export class ChatService implements OnModuleInit {
 
     // 每个 tool_call 都必须有一条对应的 tool 消息，否则下一次请求会被服务端打回
     messages.push(toolCallMessage(result));
-    const todoNames = new Set(this.todo.tools().map((t) => t.function.name));
     for (const call of result.toolCalls) {
-      const content = todoNames.has(call.name)
-        ? await this.todo.runTool(call)
-        : this.memory.runTool(call, ctx.hint);
+      const content = await this.toolRegistry.dispatch(call);
       messages.push({ role: "tool", tool_call_id: call.id, content });
     }
     return true;
@@ -158,7 +150,7 @@ export class ChatService implements OnModuleInit {
    */
   messages(sessionId: string, text: string, speaker?: string): ChatCompletionMessageParam[] {
     return [
-      { role: "system", content: this.soul.systemPrompt() },
+      { role: "system", content: this.soul.systemPrompt(this.toolRegistry.promptSection()) },
       ...this.sessions.history(sessionId),
       { role: "user", content: this.userMessage(text, speaker) },
     ];

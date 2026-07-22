@@ -6,9 +6,10 @@ import {
 } from "@nestjs/common";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import type { LLM } from "../llm/llm.service";
-import { MEMORY_LLM, type ToolCall } from "../llm/llm.types";
+import { MEMORY_LLM } from "../llm/llm.types";
 import { kSearchTool } from "../prompts";
 import { SoulService } from "../soul/soul.service";
+import type { ToolProvider } from "../tools/tool.types";
 import { TranscriptService } from "../transcript/transcript.service";
 import { consolidate, kMaxTranscript } from "./consolidator";
 import { extract } from "./extractor";
@@ -68,7 +69,7 @@ function nextTime(hhmm: string): number {
  * 与 SessionService.lock() 相互独立。
  */
 @Injectable()
-export class MemoryService implements OnModuleInit, OnApplicationShutdown {
+export class MemoryService implements OnModuleInit, OnApplicationShutdown, ToolProvider {
   private store = new MemoryStore();
   /**
    * 单写者队列
@@ -228,11 +229,26 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  /**
-   * 随请求声明的工具，记忆关闭时不挂工具
-   */
   tools(): ChatCompletionTool[] {
     return [kSearchTool];
+  }
+
+  search_memory(args: Record<string, unknown>): string {
+    const query = typeof args.query === "string" ? args.query : "";
+    return this.search(query);
+  }
+
+  promptHints(): string {
+    return [
+      `- 需要用到用户和家人的具体信息（名字、称呼、身份、偏好、健康、经历、安排等）时：上面「你对这个家的了解」或前面的对话里**已经写了的，直接回答**；**没有的，先调用 search_memory 检索再回答**。`,
+      `- **家人问他自己的事也照这个规矩**（“我是谁”“我叫什么”“我的车牌号是多少”）：上面已经写着就直接答，没写着就去查——别张口就说不知道，也别明明写着还白查一遍。`,
+      `- 检索词用名词，并带上是谁：问“我……”就查「用户 名字」这样，问“朵朵……”就查「朵朵 过敏」这样。`,
+      `- 检索不到就如实说不知道，绝不编造。`,
+      `- 通用知识、闲聊、天气这类问题不要检索，直接回答。`,
+      `- 用到检索结果时自然地融进回答，不要说“根据我的记忆”这种话。`,
+      `- **你的记忆会过时，家人不会**。家人说的和你记得的对不上时，以他们当下说的为准，别反过来纠正他们（“朵朵升三年级了”就是升了，不是他们记错了）。日子在过，孩子会升学、口味会变、安排会改。`,
+      `- 家人让你记住或忘掉某个信息（口味、称呼、健康、经历这类），**爽快答应就行**：记忆会在这轮对话之后自动更新，不需要你专门操作。别说“我做不到”“我没有删除功能”这种话。`,
+    ].join("\n");
   }
 
   list(): readonly MemoryItem[] {
@@ -277,30 +293,14 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /**
-   * 执行模型发起的工具调用
-   */
-  runTool(call: ToolCall, hint: string): string {
-    if (call.name !== "search_memory") {
-      return `没有名为 ${call.name} 的工具。`;
-    }
-    let query = "";
-    try {
-      const args = JSON.parse(call.arguments || "{}") as { query?: unknown };
-      query = typeof args.query === "string" ? args.query : "";
-    } catch (_) {
-      // 参数是模型生成的，可能不是合法 JSON；退化成只用提问原文检索
-    }
-    return this.search(query, hint);
-  }
 
   /**
    * 检索记忆，返回给模型看的文本
    *
    * 注意：本地打分，<1ms、零网络。
    */
-  search(query: string, hint: string): string {
-    const items = searchMemories(this.store.all(), query, hint, {
+  search(query: string): string {
+    const items = searchMemories(this.store.all(), query, {
       topK: this.config.recallTopK,
       maxChars: this.config.recallMaxChars,
     });
@@ -383,12 +383,12 @@ export class MemoryService implements OnModuleInit, OnApplicationShutdown {
    * 而库里记的是"朵朵今年上二年级"，线索对不上，那条就永远更新不了。
    * 等库真大到塞不下，才退回按线索筛选。
    */
-  private related(hint: string): readonly MemoryItem[] {
+  private related(query: string): readonly MemoryItem[] {
     const all = this.store.all();
     if (all.length <= kFullContextMax) {
       return all;
     }
-    return searchMemories(all, hint, hint, { topK: 20, maxChars: 2000 });
+    return searchMemories(all, query, { topK: 20, maxChars: 2000 });
   }
 
   /**

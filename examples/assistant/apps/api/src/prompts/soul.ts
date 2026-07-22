@@ -7,6 +7,7 @@ export const kSoulTemplate = render("soul/system-soul-template");
 export interface SystemPromptInput {
   soul: string;
   profile?: string;
+  tools?: string;
 }
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
@@ -23,6 +24,10 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 
   if (input.profile) {
     vars.profile = input.profile;
+  }
+
+  if (input.tools) {
+    vars.tools = input.tools;
   }
 
   return render("chat/system-prompt", vars);

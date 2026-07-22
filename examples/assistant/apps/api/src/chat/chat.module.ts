@@ -3,13 +3,14 @@ import { kAssistantConfig } from "../config";
 import { MemoryModule } from "../memory/memory.module";
 import { SoulModule } from "../soul/soul.module";
 import { TodoModule } from "../todo/todo.module";
+import { ToolModule } from "../tools/tool.module";
 import { ChatController } from "./chat.controller";
 import { ChatService } from "./chat.service";
 import { CHAT_CONFIG, SESSION_CONFIG } from "./chat.types";
 import { SessionService } from "./session.service";
 
 @Module({
-  imports: [MemoryModule, SoulModule, TodoModule],
+  imports: [MemoryModule, SoulModule, TodoModule, ToolModule],
   controllers: [ChatController],
   providers: [
     { provide: CHAT_CONFIG, useValue: kAssistantConfig.chat },

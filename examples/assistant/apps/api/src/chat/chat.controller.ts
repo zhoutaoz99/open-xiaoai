@@ -92,7 +92,7 @@ export class ChatController {
 
     let answer = "";
     try {
-      answer = await this.chat.complete(this.chat.messages(sessionId, text, speaker), text, signal);
+      answer = await this.chat.complete(this.chat.messages(sessionId, text, speaker), signal);
       console.log(`🤖 [${sessionId}] ${answer}`);
       res.json({ text: answer });
     } catch (e) {
@@ -125,7 +125,7 @@ export class ChatController {
     // 返回值就没了，已经播出去的那半句也跟着丢了
     let answer = "";
     try {
-      await this.chat.complete(this.chat.messages(sessionId, text, speaker), text, signal, (delta) => {
+      await this.chat.complete(this.chat.messages(sessionId, text, speaker), signal, (delta) => {
         answer += delta;
         sse(res, "delta", { text: delta });
       });

@@ -24,25 +24,22 @@ export interface SearchOptions {
  * 清楚得多，规则写进提示词，这里保持又笨又快又可预测。
  *
  * @param query 模型给的检索词，空格分隔
- * @param hint 本轮提问原文，作为辅助线索（模型的检索词可能漏掉上下文里的东西）
  */
 export function searchMemories(
   memories: readonly MemoryItem[],
   query: string,
-  hint: string,
   options: SearchOptions
 ): MemoryItem[] {
   const tokens = tokenize(query);
-  const text = hint.toLowerCase();
-  if (!tokens.length && !text) {
+  if (!tokens.length) {
     return [];
   }
 
   const now = Date.now();
   const scored: { item: MemoryItem; score: number }[] = [];
   for (const item of memories) {
-    const subjectHits = item.subjects.filter((e) => matches(e, tokens, text)).length;
-    const keywordHits = item.keywords.filter((e) => matches(e, tokens, text)).length;
+    const subjectHits = item.subjects.filter((e) => matches(e, tokens)).length;
+    const keywordHits = item.keywords.filter((e) => matches(e, tokens)).length;
     // 一个线索都没命中的条目直接排除。否则时近度、importance 这些
     // 与提问无关的加分项会把最近的记忆推上来，检索变成"随便给几条"
     if (!subjectHits && !keywordHits) {
@@ -101,7 +98,7 @@ function tokenize(query: string): string[] {
  * 注意：中文没有词边界，这里用双向包含做模糊匹配（"朵朵"命中"朵朵的钢琴课"）。
  * 但单字词（"水""车"）包含匹配的误命中率极高，只允许精确相等。
  */
-function matches(term: string, tokens: string[], hint: string): boolean {
+function matches(term: string, tokens: string[]): boolean {
   const key = term.toLowerCase();
   if (!key) {
     return false;
@@ -109,8 +106,5 @@ function matches(term: string, tokens: string[], hint: string): boolean {
   if (key.length < 2) {
     return tokens.includes(key);
   }
-  if (tokens.some((e) => (e.length < 2 ? e === key : e.includes(key) || key.includes(e)))) {
-    return true;
-  }
-  return hint.includes(key);
+  return tokens.some((e) => (e.length < 2 ? e === key : e.includes(key) || key.includes(e)));
 }

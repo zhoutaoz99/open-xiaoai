@@ -111,10 +111,11 @@ export class SoulService {
    *
    * 注意：这一段天级才变，`system + 历史` 前缀稳定，对前缀缓存友好
    */
-  systemPrompt(): string {
+  systemPrompt(tools?: string): string {
     return buildSystemPrompt({
       soul: this.soulText(),
       profile: this.profileText() || undefined,
+      tools,
     });
   }
 }
